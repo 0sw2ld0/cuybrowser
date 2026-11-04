@@ -138,21 +138,37 @@ El agente no puede escribir contraseñas. Inicia Chrome con ventana, entra a tu 
 cuybrowser start --profile trabajo
 ```
 
-## Binarios
+## Compilar el binario
 
-Son ejecutables únicos que no necesitan Node.js, aunque sí Google Chrome. Para compilarlos desde el código, en `release/` y junto con `SHA256SUMS`:
+Necesitas Git y Node.js 20 o superior. Para usar el binario, también Google Chrome.
+
+```bash
+git clone https://github.com/0sw2ld0/cuybrowser.git && cd cuybrowser && npm install
+```
+
+Compila solo para tu equipo. El resultado es `release/cuybrowser`:
+
+```bash
+npm run build:bin -- --current
+```
+
+Compruébalo:
+
+```bash
+./release/cuybrowser --version
+```
+
+Para generar los binarios de todas las plataformas, con `SHA256SUMS`:
 
 ```bash
 npm run build:bin
 ```
 
-Cada uno ocupa entre 97 y 123 MB. Los binarios no están firmados: macOS bloqueará uno descargado con un navegador hasta que lo autorices en Ajustes del Sistema, y Windows puede mostrar un aviso. Solo el de macOS arm64 se ha probado.
+Cada binario ocupa entre 97 y 123 MB, porque incluye su propio motor de ejecución. No están firmados: macOS bloqueará uno descargado con un navegador hasta que lo autorices en Ajustes del Sistema, y Windows puede mostrar un aviso. Solo el de macOS arm64 se ha probado.
 
 ## Desarrollo
 
-```bash
-git clone https://github.com/0sw2ld0/cuybrowser.git && cd cuybrowser && npm install
-```
+Con el repositorio clonado e instalado:
 
 ```bash
 npm test
