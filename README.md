@@ -143,6 +143,24 @@ mkdir -p .github/skills/cuybrowser && cuybrowser docs --format skill-md > .githu
 
 Copilot puede pedirte permiso para cada comando. Las acciones delicadas siguen necesitando tu aprobación en el diálogo de CuyBrowser. Comprueba también que Copilot espera a que respondas: `confirm` no termina hasta entonces.
 
+### Copilot en VS Code
+
+Sin probar todavía en VS Code. Usa la misma skill personal de la sección anterior, sin configurar MCP.
+
+Después de crearla, reinicia VS Code por completo para que reciba el `PATH` actualizado y detecte la skill. Comprueba desde su terminal integrada que encuentra el binario:
+
+```bash
+cuybrowser --version
+```
+
+Abre el chat de Copilot en modo agente, escribe `/`, elige `cuybrowser` y añade tu tarea:
+
+```text
+/cuybrowser abre example.com y dime qué dice el título
+```
+
+Copilot ejecutará comandos como `cuybrowser navigate` en la terminal, y VS Code puede pedirte permiso para cada uno. Revisa que sean comandos de `cuybrowser` y no las herramientas de navegador integradas de VS Code.
+
 ## Seguridad
 
 La política está en `~/.cuybrowser/policy.yaml`. Se crea en el primer arranque y los cambios se aplican en la siguiente acción. Si el archivo no es válido, se bloquean las acciones hasta corregirlo.
