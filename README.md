@@ -12,10 +12,10 @@ Control de Chrome para agentes de IA, con un único núcleo y varias interfaces.
 
 ## Instalación
 
-**Con Node.js 20 o superior**, desde GitHub:
+**Con Node.js 20 o superior:**
 
 ```bash
-npm install -g github:0sw2ld0/cuybrowser
+npm install -g https://github.com/0sw2ld0/cuybrowser/releases/download/v0.1.0/cuybrowser-0.1.0.tgz
 ```
 
 **Sin Node.js**, con el binario de tu plataforma, publicado en [Releases](https://github.com/0sw2ld0/cuybrowser/releases). Por ejemplo, en un Mac con Apple Silicon:
