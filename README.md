@@ -119,6 +119,30 @@ curl -s -H "Authorization: Bearer $(cat ~/.cuybrowser/token)" -d '{"url":"https:
 cuybrowser docs --format agents-md
 ```
 
+### GitHub Copilot CLI
+
+Sin probar todavía con Copilot. Primero instala `cuybrowser` y asegúrate de que esté en tu `PATH`. Luego crea una skill personal, disponible en todos tus proyectos:
+
+```bash
+mkdir -p ~/.copilot/skills/cuybrowser && cuybrowser docs --format skill-md > ~/.copilot/skills/cuybrowser/SKILL.md
+```
+
+Abre Copilot con `gh copilot` o `copilot`, comprueba que la skill aparece con `/skills list` y pídele una tarea:
+
+```text
+/cuybrowser abre example.com y dime qué dice el título
+```
+
+Si la sesión ya estaba abierta al crear la skill, ejecuta antes `/skills reload`. Copilot también puede usarla solo cuando tu petición lo requiera.
+
+Para compartirla con quienes usen un repositorio, créala dentro de él:
+
+```bash
+mkdir -p .github/skills/cuybrowser && cuybrowser docs --format skill-md > .github/skills/cuybrowser/SKILL.md
+```
+
+Copilot puede pedirte permiso para cada comando. Las acciones delicadas siguen necesitando tu aprobación en el diálogo de CuyBrowser. Comprueba también que Copilot espera a que respondas: `confirm` no termina hasta entonces.
+
 ## Seguridad
 
 La política está en `~/.cuybrowser/policy.yaml`. Se crea en el primer arranque y los cambios se aplican en la siguiente acción. Si el archivo no es válido, se bloquean las acciones hasta corregirlo.
