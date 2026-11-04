@@ -188,6 +188,16 @@ Para generar los binarios de todas las plataformas, con `SHA256SUMS`:
 npm run build:bin
 ```
 
+También puedes compilar con Yarn 1 en lugar de npm. Se ha probado con la versión 1.22. Necesitas npm igualmente, porque los scripts lo usan por dentro, y Yarn ignora `package-lock.json`, así que puede instalar versiones distintas de las dependencias:
+
+```bash
+git clone https://github.com/0sw2ld0/cuybrowser.git && cd cuybrowser && yarn install
+```
+
+```bash
+yarn build:bin --current
+```
+
 Cada binario ocupa entre 97 y 123 MB, porque incluye su propio motor de ejecución. No están firmados: macOS bloqueará uno descargado con un navegador hasta que lo autorices en Ajustes del Sistema, y Windows puede mostrar un aviso. Solo el de macOS arm64 se ha probado.
 
 ## Desarrollo
