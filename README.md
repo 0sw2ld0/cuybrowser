@@ -7,7 +7,7 @@ Control de Chrome para agentes de IA, con un único núcleo y varias interfaces.
 ## Requisitos
 
 - Node.js 20 o superior
-- Google Chrome instalado
+- Google Chrome instalado. No hace falta ninguna extensión: CuyBrowser lo abre con un perfil propio, separado del tuyo
 - macOS. Linux necesita `zenity` o `kdialog` para aprobar acciones. Linux y Windows están implementados, pero sin probar
 
 ## Instalación
@@ -121,7 +121,7 @@ cuybrowser docs --format agents-md
 
 ### GitHub Copilot CLI
 
-Sin probar todavía con Copilot. Primero instala `cuybrowser` y asegúrate de que esté en tu `PATH`. Luego crea una skill personal, disponible en todos tus proyectos:
+Sin probar todavía con Copilot. Primero instala `cuybrowser` y asegúrate de que esté en tu `PATH`. Si lo compilaste, sigue [estos pasos](#instalarlo-en-tu-path). Luego crea una skill personal, disponible en todos tus proyectos:
 
 ```bash
 mkdir -p ~/.copilot/skills/cuybrowser && cuybrowser docs --format skill-md > ~/.copilot/skills/cuybrowser/SKILL.md
@@ -181,6 +181,30 @@ Compruébalo:
 ```bash
 ./release/cuybrowser --version
 ```
+
+### Instalarlo en tu `PATH`
+
+No necesitas `sudo`. Copia el binario a una carpeta de tu usuario:
+
+```bash
+mkdir -p ~/.local/bin && cp release/cuybrowser ~/.local/bin/cuybrowser
+```
+
+Añade esa carpeta a tu `PATH`. Este comando es para zsh, el shell por defecto de macOS, y solo hace falta una vez:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+```
+
+Comprueba que lo encuentra:
+
+```bash
+cuybrowser --version
+```
+
+Si tienes abierto un agente como Copilot, ciérralo y vuelve a abrirlo desde una terminal nueva para que reciba el `PATH` actualizado.
+
+### Todas las plataformas
 
 Para generar los binarios de todas las plataformas, con `SHA256SUMS`:
 
