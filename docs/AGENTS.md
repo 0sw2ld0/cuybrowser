@@ -8,6 +8,8 @@ Herramienta para controlar Chrome desde la terminal.
 
 Requiere Google Chrome y el comando `cuybrowser`. Si no está instalado, pide a la persona usuaria que siga el README del proyecto.
 
+Ejecuta `cuybrowser` en la terminal. No uses las herramientas de navegador integradas de tu editor ni otro navegador, salvo que la persona usuaria lo pida.
+
 ```bash
 cuybrowser start
 ```

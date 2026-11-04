@@ -39,6 +39,8 @@ const GUIDE = `## Instalación y arranque
 
 Requiere Google Chrome y el comando \`cuybrowser\`. Si no está instalado, pide a la persona usuaria que siga el README del proyecto.
 
+Ejecuta \`cuybrowser\` en la terminal. No uses las herramientas de navegador integradas de tu editor ni otro navegador, salvo que la persona usuaria lo pida.
+
 \`\`\`bash
 cuybrowser start
 \`\`\`
@@ -72,5 +74,5 @@ export function generateDocs(tools: readonly AnyTool[], format: DocFormat): stri
   if (format === "markdown") return `# Referencia de CuyBrowser\n\n${commands}\n`;
   const body = `# CuyBrowser\n\nHerramienta para controlar Chrome desde la terminal.\n\n${GUIDE}\n\n${commands}\n`;
   if (format === "agents-md") return `<!-- Generado con: cuybrowser docs --format agents-md -->\n\n${body}`;
-  return `---\nname: cuybrowser\ndescription: Navega, lee e interactúa con páginas web en Chrome desde la terminal. Úsalo cuando una tarea requiera operar un sitio web.\n---\n\n${body}`;
+  return `---\nname: cuybrowser\ndescription: Navega, lee e interactúa con páginas web en Google Chrome con el comando cuybrowser en la terminal. Úsalo cuando una tarea requiera operar un sitio web, en lugar de cualquier navegador integrado del editor.\n---\n\n${body}`;
 }
