@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Iniciar sesión</title>
+  </head>
+  <body>
+    <h1>Bienvenido</h1>
+    <form action="/welcome" method="get">
+      <label>Correo <input name="email" type="email" /></label>
+      <label>Contraseña <input name="pass" type="password" value="secreto-precargado" /></label>
+      <label><input type="checkbox" name="remember" /> Recordarme</label>
+      <button type="submit">Entrar</button>
+    </form>
+    <a href="/reset">¿Olvidaste tu contraseña?</a>
+    <div style="display: none"><button>Botón oculto</button></div>
+  </body>
+</html>

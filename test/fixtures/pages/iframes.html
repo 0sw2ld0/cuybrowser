@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Con iframes</title>
+  </head>
+  <body>
+    <h1>Página principal</h1>
+    <p id="resultado">Sin mensajes</p>
+    <iframe id="mismo" title="Mismo sitio" src="/hijo" width="400" height="220" style="border: 5px solid #888"></iframe>
+    <div style="height: 40px"></div>
+    <iframe id="otro" title="Otro sitio" width="400" height="220"></iframe>
+    <div id="capa-wrap" style="position: relative; width: 400px; height: 220px">
+      <iframe title="Tapado" src="/hijo?tapado" width="400" height="220"></iframe>
+      <div style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.2)"></div>
+    </div>
+    <script>
+      document.getElementById("otro").src = `http://localhost:${location.port}/hijo`;
+    </script>
+  </body>
+</html>

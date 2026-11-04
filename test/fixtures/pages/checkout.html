@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Caja de la tienda</title>
+  </head>
+  <body>
+    <h1>Caja</h1>
+    <form id="pago" action="/welcome" method="get" aria-label="Pago">
+      <label>Dirección <input name="direccion" /></label>
+      <label>Número de tarjeta <input name="cardnumber" autocomplete="cc-number" /></label>
+      <label>Notas <textarea name="notas"></textarea></label>
+      <button type="submit">Pagar 20 €</button>
+      <button type="button" id="cupon">Aplicar cupón</button>
+    </form>
+    <button id="directa" onclick="document.title = 'COMPRADO'">Comprar ahora</button>
+    <button id="cambia" onclick="this.textContent = 'Comprar ahora mismo'">Comprar en un clic</button>
+    <a href="http://localhost:1/fuera">Sitio externo</a>
+    <a href="/redirigir">Redirección prohibida</a>
+    <a href="/archivo">Descargar informe</a>
+    <input id="adjunto" type="file" aria-label="Adjunto" onchange="document.title = 'Adjunto: ' + this.files[0].name" />
+  </body>
+</html>

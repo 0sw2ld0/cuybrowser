@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Diálogos</title>
+  </head>
+  <body>
+    <p id="salida">Sin respuesta</p>
+    <button onclick="salida.textContent = 'confirm: ' + confirm('¿Continuar?')">Preguntar</button>
+    <button onclick="salida.textContent = 'prompt: ' + prompt('¿Nombre?')">Pedir nombre</button>
+    <button onclick="salida.textContent = 'pago: ' + confirm('¿Quieres pagar 20 €?')">Doble paso</button>
+  </body>
+</html>

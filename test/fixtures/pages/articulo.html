@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Artículo largo</title>
+  </head>
+  <body>
+    <h1>Historia del cuy en los Andes</h1>
+    <main id="cuerpo"></main>
+    <script>
+      const frase = "El cuy se domesticó en los Andes hace miles de años y sigue presente en la cocina, la medicina tradicional y las celebraciones de muchas comunidades de la región. ";
+      for (let i = 0; i < 12; i++) {
+        const p = document.createElement("p");
+        p.textContent = frase.repeat(4);
+        cuerpo.append(p);
+      }
+    </script>
+  </body>
+</html>

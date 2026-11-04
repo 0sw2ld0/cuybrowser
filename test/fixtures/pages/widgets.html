@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Controles</title>
+    <style>
+      #wrap { position: relative; width: 200px; height: 60px; }
+      #covered { width: 200px; height: 60px; }
+      #overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5); }
+    </style>
+  </head>
+  <body>
+    <p id="count">Clics: 0</p>
+    <button id="add" onclick="count.textContent = 'Clics: ' + ++window.total">Sumar</button>
+    <button disabled>Inactivo</button>
+    <div id="wrap">
+      <button id="covered" onclick="count.textContent = 'TAPADO PULSADO'">Tapado</button>
+      <div id="overlay"></div>
+    </div>
+    <button id="remove" onclick="add.remove()">Quitar sumar</button>
+    <button id="push" onclick="history.pushState({}, '', '/widgets?paso=2')">Cambiar URL</button>
+    <a href="/reset" target="_blank">Abrir aparte</a>
+    <label>Notas <input id="notes" value="inicial" /></label>
+    <shadow-box></shadow-box>
+    <button onclick="alert('Aviso de prueba')">Abrir alerta</button>
+    <div style="height: 3000px"></div>
+    <button>Al fondo</button>
+    <script>
+      console.warn("widgets listo");
+      fetch("/no-existe");
+      window.total = 0;
+      customElements.define(
+        "shadow-box",
+        class extends HTMLElement {
+          connectedCallback() {
+            const root = this.attachShadow({ mode: "open" });
+            root.innerHTML = "<button>Dentro de shadow</button>";
+            root.querySelector("button").onclick = () => {
+              count.textContent = "Shadow pulsado";
+            };
+          }
+        },
+      );
+    </script>
+  </body>
+</html>

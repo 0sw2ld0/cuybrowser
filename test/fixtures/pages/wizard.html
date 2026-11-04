@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Formulario por pasos</title>
+  </head>
+  <body>
+    <form id="paso1">
+      <h1>Paso 1</h1>
+      <label>Nombre <input id="nombre" /></label>
+    </form>
+    <section id="paso2" hidden>
+      <h1>Paso 2</h1>
+      <label>País
+        <select id="pais">
+          <option>Bolivia</option>
+          <option>Perú</option>
+        </select>
+      </label>
+      <button id="seguir">Seguir</button>
+    </section>
+    <section id="paso3" hidden>
+      <h1>Paso 3</h1>
+      <label><input id="acepto" type="checkbox" /> Acepto</label>
+      <button id="fin">Finalizar</button>
+    </section>
+    <p id="fin-texto"></p>
+    <script>
+      paso1.onsubmit = (event) => {
+        event.preventDefault();
+        paso1.hidden = true;
+        paso2.hidden = false;
+      };
+      seguir.onclick = () => {
+        paso2.hidden = true;
+        paso3.hidden = false;
+      };
+      fin.onclick = () => {
+        paso3.hidden = true;
+        document.getElementById("fin-texto").textContent =
+          `Completado: ${nombre.value}, ${pais.value}, ${acepto.checked}`;
+      };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Crear incidencia</title>
+    <style>
+      #descripcion { min-height: 80px; border: 1px solid #888; padding: 4px; }
+      li[role="option"] { padding: 4px; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main id="modal">
+      <h1>Crear incidencia</h1>
+      <label>Tipo de incidencia
+        <select id="tipo">
+          <option value="task">Tarea</option>
+          <option value="story">Historia</option>
+          <option value="bug">Error</option>
+        </select>
+      </label>
+      <label>Resumen <input id="resumen" /></label>
+      <label for="responsable">Responsable</label>
+      <input id="responsable" role="combobox" aria-expanded="false" aria-controls="sugerencias" />
+      <ul id="sugerencias" role="listbox" aria-label="Sugerencias"></ul>
+      <div id="descripcion" role="textbox" aria-multiline="true" aria-label="Descripción" contenteditable="true"></div>
+      <p id="aviso" role="alert"></p>
+      <button id="crear">Crear</button>
+    </main>
+    <script>
+      const personas = ["Ana Torres", "Luis Rojas", "Ana Quispe"];
+      let elegido = "";
+      let espera;
+      responsable.addEventListener("input", () => {
+        elegido = "";
+        clearTimeout(espera);
+        sugerencias.replaceChildren();
+        responsable.setAttribute("aria-expanded", "false");
+        // Las sugerencias llegan con retraso, como en una búsqueda contra el servidor.
+        espera = setTimeout(() => {
+          const texto = responsable.value.toLowerCase();
+          for (const persona of personas.filter((p) => p.toLowerCase().includes(texto))) {
+            const item = document.createElement("li");
+            item.role = "option";
+            item.textContent = persona;
+            item.onclick = () => {
+              elegido = persona;
+              responsable.value = persona;
+              sugerencias.replaceChildren();
+              responsable.setAttribute("aria-expanded", "false");
+            };
+            sugerencias.append(item);
+          }
+          responsable.setAttribute("aria-expanded", "true");
+        }, 400);
+      });
+      crear.onclick = () => {
+        if (!resumen.value) {
+          aviso.textContent = "El resumen es obligatorio";
+          return;
+        }
+        history.pushState({}, "", "/jira?clave=PROJ-123");
+        const resultado = document.createElement("div");
+        resultado.role = "status";
+        resultado.textContent = [
+          "PROJ-123 creada",
+          tipo.selectedOptions[0].label,
+          resumen.value,
+          elegido,
+          descripcion.innerText.trim(),
+        ].join(" | ");
+        modal.replaceWith(resultado);
+      };
+    </script>
+  </body>
+</html>
