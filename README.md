@@ -147,12 +147,6 @@ Copilot puede pedirte permiso para cada comando. Las acciones delicadas siguen n
 
 Sin probar todavía en VS Code. Usa la misma skill personal de la sección anterior, sin configurar MCP.
 
-VS Code tiene un navegador integrado y Copilot puede usarlo en lugar de CuyBrowser. Para evitarlo, ejecuta **Preferences: Open User Settings (JSON)** en la paleta de comandos y añade este ajuste. Afecta a todos tus proyectos: para recuperar ese navegador en el chat, bórralo:
-
-```json
-"workbench.browser.enableChatTools": false
-```
-
 Si creaste la skill con una versión anterior, vuelve a crearla para tener las instrucciones actuales. Después de crearla, reinicia VS Code por completo para que reciba el `PATH` actualizado y detecte la skill. Comprueba desde su terminal integrada que encuentra el binario:
 
 ```bash
@@ -166,6 +160,12 @@ Abre el chat de Copilot en modo agente, escribe `/`, elige `cuybrowser` y añade
 ```
 
 Copilot ejecutará comandos como `cuybrowser navigate` en la terminal, y VS Code puede pedirte permiso para cada uno. Revisa que sean comandos de `cuybrowser` y no las herramientas de navegador integradas de VS Code.
+
+Si se abre el navegador integrado de VS Code en lugar de Chrome, abre primero un chat nuevo, porque un chat ya abierto puede no haber cargado la skill. Solo si sigue pasando, ejecuta **Preferences: Open User Settings (JSON)** en la paleta de comandos y añade este ajuste. Afecta a todos tus proyectos: para recuperar ese navegador en el chat, bórralo:
+
+```json
+"workbench.browser.enableChatTools": false
+```
 
 ## Seguridad
 
