@@ -23,6 +23,9 @@ export class LaunchDriver implements BrowserDriver {
         channel: "chrome",
         headless: this.options.headless,
         viewport: null,
+        // Sin esto Playwright añade --no-sandbox y Chrome muestra un aviso de
+        // marca no admitida; además deja el renderizador sin aislamiento.
+        chromiumSandbox: true,
         // Core las retiene en cuarentena hasta que una persona las aprueba.
         acceptDownloads: true,
       });
