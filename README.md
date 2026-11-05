@@ -208,10 +208,10 @@ Compruébalo:
 
 ### Instalarlo en tu `PATH`
 
-No necesitas `sudo`. Copia el binario a una carpeta de tu usuario:
+No necesitas `sudo`. Copia el binario a una carpeta de tu usuario. El `rm -f` evita que macOS mate el binario nuevo si el anterior sigue en ejecución:
 
 ```bash
-mkdir -p ~/.local/bin && cp release/cuybrowser ~/.local/bin/cuybrowser
+mkdir -p ~/.local/bin && rm -f ~/.local/bin/cuybrowser && cp release/cuybrowser ~/.local/bin/cuybrowser
 ```
 
 Añade esa carpeta a tu `PATH`. Este comando es para zsh, el shell por defecto de macOS, y solo hace falta una vez:
@@ -227,6 +227,38 @@ cuybrowser --version
 ```
 
 Si tienes abierto un agente como Copilot, ciérralo y vuelve a abrirlo desde una terminal nueva para que reciba el `PATH` actualizado.
+
+### Actualizar
+
+Desde la carpeta que clonaste, detén el proceso en segundo plano. También cierra Chrome:
+
+```bash
+cuybrowser daemon stop
+```
+
+Trae los cambios, recompila y reemplaza el binario:
+
+```bash
+git pull && npm install && npm run build:bin -- --current && rm -f ~/.local/bin/cuybrowser && cp release/cuybrowser ~/.local/bin/cuybrowser
+```
+
+Con Yarn:
+
+```bash
+git pull && yarn install && yarn build:bin --current && rm -f ~/.local/bin/cuybrowser && cp release/cuybrowser ~/.local/bin/cuybrowser
+```
+
+Regenera la skill por si cambiaron sus instrucciones, y abre un chat nuevo en tu agente:
+
+```bash
+cuybrowser docs --format skill-md > ~/.copilot/skills/cuybrowser/SKILL.md
+```
+
+Si `cuybrowser` termina con `zsh: killed`, el binario se copió encima de uno que seguía en ejecución. Cierra los procesos que queden y vuelve a copiarlo:
+
+```bash
+pkill -f '\.local/bin/cuybrowser'; rm -f ~/.local/bin/cuybrowser && cp release/cuybrowser ~/.local/bin/cuybrowser
+```
 
 ### Todas las plataformas
 
