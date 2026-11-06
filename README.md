@@ -2,26 +2,26 @@
 
 Control de Chrome para agentes de IA, con un único núcleo y varias interfaces. La especificación completa está en [ESPEC-cuybrowser.md](ESPEC-cuybrowser.md).
 
-> **Estado: versión 0.1.0, de prueba. No está en npm.** Antes de enviar formularios, comprar, subir o descargar archivos, o ejecutar JavaScript, CuyBrowser pide tu aprobación en un diálogo del sistema. Esa detección es una heurística: un botón de una aplicación web que no pertenezca a un formulario ni parezca una compra se pulsa sin preguntar, así que supervisa al agente en cuentas importantes. Solo se ha probado en macOS; Linux y Windows están implementados pero sin probar.
+> **Estado: versión 0.2.0, de prueba. No está en npm.** Antes de enviar formularios, comprar, subir o descargar archivos, o ejecutar JavaScript, CuyBrowser pide tu aprobación en un diálogo del sistema. Esa detección es una heurística: un botón de una aplicación web que no pertenezca a un formulario ni parezca una compra se pulsa sin preguntar, así que supervisa al agente en cuentas importantes. El uso real solo se ha probado en macOS. En Linux y Windows se ejecutan las pruebas automáticas, que usan un aprobador simulado en lugar del diálogo del sistema.
 
 ## Requisitos
 
 - Node.js 20 o superior
 - Google Chrome instalado. No hace falta ninguna extensión: CuyBrowser lo abre con un perfil propio, separado del tuyo
-- macOS. Linux necesita `zenity` o `kdialog` para aprobar acciones. Linux y Windows están implementados, pero sin probar
+- macOS. Linux necesita `zenity` o `kdialog` para aprobar acciones. En Linux y Windows solo se ejecutan las pruebas automáticas; el uso real no se ha probado
 
 ## Instalación
 
 **Con Node.js 20 o superior:**
 
 ```bash
-npm install -g https://github.com/0sw2ld0/cuybrowser/releases/download/v0.1.0/cuybrowser-0.1.0.tgz
+npm install -g https://github.com/0sw2ld0/cuybrowser/releases/download/v0.2.0/cuybrowser-0.2.0.tgz
 ```
 
 **Sin Node.js**, con el binario de tu plataforma, publicado en [Releases](https://github.com/0sw2ld0/cuybrowser/releases). Por ejemplo, en un Mac con Apple Silicon:
 
 ```bash
-curl -fLo cuybrowser https://github.com/0sw2ld0/cuybrowser/releases/download/v0.1.0/cuybrowser-macos-arm64 && chmod +x cuybrowser
+curl -fLo cuybrowser https://github.com/0sw2ld0/cuybrowser/releases/download/v0.2.0/cuybrowser-macos-arm64 && chmod +x cuybrowser
 ```
 
 Usa `cuybrowser-macos-x64`, `cuybrowser-linux-x64`, `cuybrowser-linux-arm64` o `cuybrowser-windows-x64.exe` según tu equipo, y ejecútalo como `./cuybrowser`. Las sumas de comprobación están en `SHA256SUMS`.
