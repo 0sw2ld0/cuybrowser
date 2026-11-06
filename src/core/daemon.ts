@@ -6,6 +6,7 @@ import { ensureHome, socketPath } from "./paths.js";
 import type { AnyTool } from "./registry.js";
 import { createNativeApprover, type Approver } from "./security/approver.js";
 import { ensureToken } from "./security/token.js";
+import { VERSION } from "./version.js";
 
 export interface DaemonOptions {
   /** Solo las pruebas sustituyen el aprobador; no hay ninguna forma de hacerlo por configuración. */
@@ -84,7 +85,7 @@ export async function runDaemon(tools: readonly AnyTool[], options: DaemonOption
 
     switch (request.type) {
       case "ping":
-        send({ id, type: "pong", pid: process.pid });
+        send({ id, type: "pong", pid: process.pid, version: VERSION });
         break;
       case "shutdown":
         send({ id, type: "bye" });

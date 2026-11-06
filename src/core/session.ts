@@ -233,6 +233,10 @@ export class Session {
     page.on("console", (message) => {
       this.events.push("console", id, { level: message.type(), text: message.text() });
     });
+    // Las excepciones no capturadas no llegan como mensaje de consola.
+    page.on("pageerror", (error) => {
+      this.events.push("console", id, { level: "error", text: `${error.name}: ${error.message}`, uncaught: true });
+    });
     page.on("response", (response) => {
       const request = response.request();
       this.events.push("network", id, {

@@ -28,6 +28,9 @@
     <script>
       console.warn("widgets listo");
       fetch("/no-existe");
+      setTimeout(() => {
+        throw new Error("fallo sin capturar");
+      });
       window.total = 0;
       customElements.define(
         "shadow-box",

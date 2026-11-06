@@ -283,6 +283,15 @@ describe("eventos", () => {
     expect(failed.data.requests.length).toBeGreaterThan(0);
     expect(failed.data.requests[0].data.status).toBe(404);
 
+    const uncaught = await viaCli("console_messages", { level: "error" });
+    const thrown = uncaught.data.messages.find((message: any) => message.data.uncaught);
+    expect(thrown?.data.text).toContain("Error: fallo sin capturar");
+
+    const limited = await viaCli("network_requests", { limit: 1 });
+    expect(limited.data.requests).toHaveLength(1);
+    expect(limited.data.total).toBeGreaterThan(1);
+    expect(limited.warnings.join(" ")).toContain("más recientes");
+
     abort.abort();
     await reading;
     const all = events.join("");

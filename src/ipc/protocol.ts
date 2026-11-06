@@ -18,7 +18,8 @@ export type IpcRequest =
 
 export type IpcReply =
   | { id: number; type: "tool"; response: ToolResponse }
-  | { id: number; type: "pong"; pid: number }
+  /** Los daemons compilados antes de esta comprobación no envían version. */
+  | { id: number; type: "pong"; pid: number; version?: string }
   | { id: number; type: "bye" }
   | { id: number; type: "event"; event: BrowserEvent }
   | { id: number; type: "approval_info"; info: ApprovalInfo }
