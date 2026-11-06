@@ -317,6 +317,26 @@ npm test
 
 Las pruebas E2E abren Chrome sin ventana contra fixtures locales y usan un directorio temporal, sin tocar `~/.cuybrowser`.
 
+La CI de GitHub Actions ejecuta las pruebas en macOS, Linux y Windows en cada pull request y en cada push a `main`.
+
+### Publicar una versión
+
+Cambia la versión en `package.json` y `package-lock.json`:
+
+```bash
+npm version 0.2.0 --no-git-tag-version
+```
+
+Pon la misma en `src/core/version.ts`, porque una prueba comprueba que coinciden. Actualiza también las URLs de instalación de este README y haz commit.
+
+Crea el tag y súbelo:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+El workflow `Release` comprueba que el tag coincide con la versión, ejecuta las pruebas y compila los binarios y el paquete `.tgz` con su `SHA256SUMS`. Después crea un borrador de release en GitHub: revísalo y publícalo desde allí.
+
 ## Licencia
 
 [MIT](LICENSE)

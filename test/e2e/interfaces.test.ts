@@ -214,7 +214,8 @@ describe("seguridad de la API HTTP", () => {
   const tool = () => `${httpUrl}/v1/tools/status`;
   const auth = () => ({ authorization: `Bearer ${token}` });
 
-  it("crea el token con permisos 600", () => {
+  // Windows no tiene bits de permiso POSIX; readToken tampoco los comprueba allí.
+  it.skipIf(process.platform === "win32")("crea el token con permisos 600", () => {
     expect(statSync(join(home, "token")).mode & 0o777).toBe(0o600);
   });
 
