@@ -210,6 +210,28 @@ describe("paridad entre interfaces", () => {
   });
 });
 
+describe("servidor MCP", () => {
+  it("marca las herramientas de solo lectura según su riesgo", async () => {
+    const { tools: mcpTools } = await mcp.listTools();
+    const byName = new Map(mcpTools.map((tool) => [tool.name, tool.annotations]));
+    for (const name of ["snapshot", "get_text", "find", "screenshot", "tabs_list", "status"]) {
+      expect(byName.get(`browser_${name}`)?.readOnlyHint, name).toBe(true);
+    }
+    for (const name of ["click", "type", "navigate", "confirm", "upload_file", "evaluate"]) {
+      expect(byName.get(`browser_${name}`), name).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    }
+  });
+
+  it("entrega el ciclo de trabajo y las reglas de seguridad con los nombres prefijados", () => {
+    const instructions = mcp.getInstructions() ?? "";
+    expect(instructions).toContain("`browser_snapshot`");
+    expect(instructions).toContain("`browser_confirm`");
+    expect(instructions).toContain("CONFIRMATION_REQUIRED");
+    expect(instructions).toContain("SENSITIVE_FIELD");
+    expect(instructions).not.toMatch(/`(snapshot|confirm|type)`/);
+  });
+});
+
 describe("seguridad de la API HTTP", () => {
   const tool = () => `${httpUrl}/v1/tools/status`;
   const auth = () => ({ authorization: `Bearer ${token}` });
