@@ -509,6 +509,9 @@ describe("subida de archivos", () => {
       expect((await call("upload_file", { ref, paths: [join(fakeHome, "notas.txt")] })).error.code).toBe(
         "CONFIRMATION_REQUIRED",
       );
+      // En macOS la misma carpeta escrita con mayúsculas existe y debe seguir bloqueada; en Linux no existe.
+      const variant = await call("upload_file", { ref, paths: [join(fakeHome, ".CONFIG", "GH", "hosts.yml")] });
+      expect(variant.error.code).toBe(process.platform === "darwin" ? "BLOCKED_BY_POLICY" : "INVALID_PARAMS");
     } finally {
       process.env.HOME = previous;
       rmSync(fakeHome, { recursive: true, force: true });

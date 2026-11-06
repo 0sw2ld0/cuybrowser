@@ -1,0 +1,3 @@
+# LF en todos los sistemas. Git en Windows convertiría a CRLF al clonar, y docs/AGENTS.md
+# se compara byte a byte con el que genera cuybrowser docs.
+* text=auto eol=lf

@@ -32,22 +32,42 @@ const PROTECTED = [
   "AppData/Local/Google/Chrome/User Data",
 ];
 
+/**
+ * La versión nativa devuelve la ruta canónica. La de JavaScript conserva las mayúsculas y los nombres cortos
+ * de Windows (RUNNER~1) que se le pasen, así que ~/.SSH en macOS o un nombre 8.3 esquivarían el bloqueo.
+ */
+function canonical(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+/** En macOS y Windows el sistema de archivos no suele distinguir mayúsculas: comparar sin ellas solo bloquea de más. */
+const comparable =
+  process.platform === "darwin" || process.platform === "win32"
+    ? (path: string) => path.toLowerCase()
+    : (path: string) => path;
+
+function isInside(path: string, dir: string): boolean {
+  const target = comparable(path);
+  const base = comparable(dir);
+  return target === base || target.startsWith(`${base}${sep}`);
+}
+
 function protectedDirs(): string[] {
   const home = homedir();
-  return [homeDir(), ...PROTECTED.map((dir) => join(home, dir))].map((dir) => {
-    try {
-      return realpathSync(dir);
-    } catch {
-      return resolve(dir);
-    }
-  });
+  return [homeDir(), ...PROTECTED.map((dir) => join(home, dir))].map(canonical);
 }
 
 /** La persona tiene que ver qué archivo aprueba: si no cabe, se recorta por el principio y se conserva el nombre. */
 function displayPath(path: string): string {
-  const home = homedir();
-  const short = path === home || path.startsWith(`${home}${sep}`) ? `~${path.slice(home.length)}` : path;
-  return short.length > 80 ? `…${short.slice(-79)}` : short;
+  const home = canonical(homedir());
+  const relative = isInside(path, home) ? `~${path.slice(home.length)}` : path;
+  // JSON duplicaría las barras invertidas de Windows en el diálogo: se muestran como /.
+  const shown = sep === "\\" ? relative.replaceAll("\\", "/") : relative;
+  return shown.length > 80 ? `…${shown.slice(-79)}` : shown;
 }
 
 /** Se resuelven los enlaces simbólicos para que uno no pueda apuntar a una carpeta protegida. */
@@ -56,12 +76,12 @@ function checkPaths(paths: string[]): string[] {
   return paths.map((path) => {
     let real: string;
     try {
-      real = realpathSync(resolve(path));
+      real = realpathSync.native(resolve(path));
       if (!statSync(real).isFile()) throw new Error("not_file");
     } catch {
       throw new CuyError("INVALID_PARAMS", `El archivo no existe o no es un archivo: ${path}`);
     }
-    if (blocked.some((dir) => real === dir || real.startsWith(`${dir}${sep}`))) {
+    if (blocked.some((dir) => isInside(real, dir))) {
       throw new CuyError("BLOCKED_BY_POLICY", `No se permite subir archivos de esa carpeta: ${path}`);
     }
     return real;
