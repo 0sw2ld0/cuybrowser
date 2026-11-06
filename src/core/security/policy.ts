@@ -20,6 +20,7 @@ const PolicySchema = z.strictObject({
   confirm: z.array(z.enum(CONFIRM_KINDS)).default([...CONFIRM_KINDS]),
   sensitive_fields: z.strictObject({ block_typing: z.boolean().default(true) }).prefault({}),
   evaluate: z.strictObject({ enabled: z.boolean().default(false) }).prefault({}),
+  attach: z.strictObject({ enabled: z.boolean().default(false) }).prefault({}),
   audit: z
     .strictObject({
       enabled: z.boolean().default(true),
@@ -45,6 +46,8 @@ sensitive_fields:
   block_typing: true
 evaluate:
   enabled: false
+attach:                # conectarse a un Chrome abierto con --remote-debugging-port
+  enabled: false       # el agente vería todas sus pestañas y sesiones
 audit:
   enabled: true
 `;

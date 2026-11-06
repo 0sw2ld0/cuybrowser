@@ -60,7 +60,7 @@ Construir una herramienta que permita a cualquier agente de IA navegar, leer e i
 
 ### 3.2 Modos de navegador
 1. **`launch`** (por defecto): abre Chrome con un perfil aislado en `~/.cuybrowser/profiles/<nombre>` mediante `launchPersistentContext`. Las sesiones iniciadas manualmente por el usuario persisten en ese perfil.
-2. **`attach`**: se conecta a un Chrome ya lanzado con `--remote-debugging-port` mediante `connectOverCDP(url)`.
+2. **`attach`**: se conecta a un Chrome ya lanzado con `--remote-debugging-port` mediante `connectOverCDP(url)`. Está deshabilitado salvo que la política tenga `attach.enabled: true`, solo admite URLs de este equipo (`127.0.0.1`, `localhost` o `[::1]`), trabaja en una pestaña nueva para no tocar la que usa la persona y `stop` solo se desconecta.
 3. *(Fuera de v1)* **`extension`**: control del Chrome real del usuario a través de una extensión. Dejar la interfaz `BrowserDriver` preparada para añadirlo.
 
 Toda la interacción con el navegador pasa por una interfaz `BrowserDriver`, para poder añadir modos sin tocar las herramientas.
@@ -208,6 +208,8 @@ sensitive_fields:
   block_typing: true    # bloquea type, y press_key con el foco en ellos, en campos password, tarjeta o CVV (autocomplete=cc-*), etc.
 evaluate:
   enabled: false
+attach:
+  enabled: false        # modo attach: acceso a todas las pestañas y sesiones de ese Chrome
 audit:
   enabled: true
   path: ~/.cuybrowser/audit.jsonl

@@ -42,19 +42,20 @@ Con `REF_STALE` o `REF_NOT_FOUND`, toma un snapshot nuevo. Con `NOT_INTERACTABLE
 
 ### start
 
-Inicia Chrome con un perfil aislado de CuyBrowser.
+Inicia Chrome con un perfil aislado de CuyBrowser o, con mode attach, se conecta a un Chrome ya abierto con --remote-debugging-port si la política lo permite.
 
 ```bash
 cuybrowser start [opciones]
 ```
 
-- `--mode`: Modo de navegador. Valores: launch. Por defecto: launch.
-- `--profile`: Nombre del perfil aislado. Por defecto: default.
-- `--headless`: Ejecuta Chrome sin ventana. Por defecto: false.
+- `--mode`: launch abre un Chrome propio; attach se conecta a uno ya abierto en este equipo. Valores: launch, attach. Por defecto: launch.
+- `--profile`: Nombre del perfil aislado, solo con launch. Por defecto: default.
+- `--cdp`: URL de depuración de Chrome, solo con attach. Por defecto http://127.0.0.1:9222.
+- `--headless`: Ejecuta Chrome sin ventana, solo con launch. Por defecto: false.
 
 ### stop
 
-Cierra Chrome. El perfil y sus sesiones se conservan.
+Cierra Chrome; el perfil y sus sesiones se conservan. En modo attach solo se desconecta y Chrome sigue abierto.
 
 ```bash
 cuybrowser stop

@@ -186,6 +186,33 @@ El agente no puede escribir contraseñas. Inicia Chrome con ventana, entra a tu 
 cuybrowser start --profile trabajo
 ```
 
+## Conectar con un Chrome ya abierto
+
+Con el modo `attach`, CuyBrowser controla un Chrome que abriste tú, en lugar de abrir el suyo. El agente verá todas las pestañas y sesiones de ese Chrome, así que está deshabilitado por defecto. Para habilitarlo, añade esto a `~/.cuybrowser/policy.yaml`:
+
+```yaml
+attach:
+  enabled: true
+```
+
+Abre Chrome con el puerto de depuración. Desde la versión 136, Chrome ignora ese puerto en tu perfil habitual, así que necesita una carpeta de datos propia. En macOS:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir="$HOME/.chrome-attach"
+```
+
+Conecta CuyBrowser. Sin `--cdp`, usa `http://127.0.0.1:9222`:
+
+```bash
+cuybrowser start --mode attach
+```
+
+- El agente trabaja en una pestaña nueva y puede elegir otra con `tab_select`.
+- `cuybrowser stop` solo se desconecta: Chrome sigue abierto con sus pestañas.
+- Mientras está conectado, las reglas de dominios afectan a todas las pestañas, también a las que uses tú. Lo mismo pasa con las descargas: todas quedan en cuarentena hasta que las apruebas.
+- No se ha comprobado que Chrome vuelva a guardar las descargas como siempre después de desconectar. Si no lo hace, reinícialo.
+- Solo se admite un Chrome de este equipo. El puerto de depuración permite controlar ese Chrome a cualquier programa de tu equipo, así que cierra Chrome cuando termines.
+
 ## Compilar el binario
 
 Necesitas Git y Node.js 20 o superior. Para usar el binario, también Google Chrome.

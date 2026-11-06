@@ -8,6 +8,7 @@ import type { BrowserDriver, StartOptions } from "./types.js";
 export class LaunchDriver implements BrowserDriver {
   readonly mode = "launch" as const;
   readonly profile: string;
+  readonly endpoint = null;
   private context: BrowserContext | null = null;
 
   constructor(private readonly options: StartOptions) {
