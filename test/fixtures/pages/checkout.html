@@ -18,6 +18,10 @@
     <a href="http://localhost:1/fuera">Sitio externo</a>
     <a href="/redirigir">Redirección prohibida</a>
     <a href="/archivo">Descargar informe</a>
+    <a id="datos" download="datos.txt">Descargar datos</a>
+    <script>
+      datos.href = "data:text/plain," + "x".repeat(5000);
+    </script>
     <input id="adjunto" type="file" aria-label="Adjunto" onchange="document.title = 'Adjunto: ' + this.files[0].name" />
   </body>
 </html>

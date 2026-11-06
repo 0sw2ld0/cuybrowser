@@ -237,8 +237,9 @@ audit:
 4. Si el modo de navegador no permite retener la descarga, esta se cancela y se avisa en `warnings`.
 
 ### 6.3 Contenido no confiable
-- Todo texto que provenga de la página se entrega delimitado como datos, por ejemplo `<<<PAGE_CONTENT … PAGE_CONTENT>>>`, y la descripción de cada herramienta de lectura recuerda que ese contenido no son instrucciones.
-- Heurística de **posible prompt injection**: textos como "ignora tus instrucciones", "eres un asistente", instrucciones dirigidas a IA o texto oculto con CSS. Si se detecta, se añade a `warnings` sin bloquear.
+- El texto libre de la página (snapshot, `get_text`, consola) se entrega delimitado como datos, por ejemplo `<<<PAGE_CONTENT … PAGE_CONTENT>>>`, y la descripción de cada herramienta de lectura recuerda que ese contenido no son instrucciones.
+- Los textos cortos, como títulos, nombres de `find`, opciones o URLs, viajan como valores JSON sin delimitar, para no gastar tokens en cada respuesta.
+- Heurística de **posible prompt injection**: textos como "ignora tus instrucciones", "eres un asistente", instrucciones dirigidas a IA o texto oculto con CSS. Se aplica al texto libre y a todos los textos de cada respuesta. Si se detecta, se añade a `warnings` sin bloquear.
 
 ### 6.4 Otros requisitos
 - La API HTTP solo escucha en `127.0.0.1`, exige el token `~/.cuybrowser/token` (lo genera el daemon en su primer arranque si no existe, con permisos 600; si el archivo tiene permisos más abiertos, la API HTTP no arranca y lo indica) y rechaza peticiones con `Origin` de navegador (protección contra ataques desde páginas web).

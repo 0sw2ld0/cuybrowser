@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classifySensitive } from "../../src/core/security/sensitive.js";
-import { RefTable } from "../../src/core/snapshot/refs.js";
+import { MAX_STALE_REFS, RefTable } from "../../src/core/snapshot/refs.js";
 import {
   buildItems,
   diffLines,
@@ -270,4 +270,17 @@ describe("classifySensitive", () => {
       expect(classifySensitive(attrs as Record<string, string>)).toBeNull();
     },
   );
+});
+
+describe("tabla de refs", () => {
+  it("olvida las refs caducadas más antiguas para no crecer sin límite", () => {
+    const table = new RefTable();
+    const first = table.refFor(1);
+    for (let id = 2; id <= MAX_STALE_REFS + 10; id++) table.refFor(id);
+    table.invalidate();
+    const last = table.refFor(MAX_STALE_REFS + 10);
+    table.invalidate();
+    expect(() => table.resolve(first)).toThrow(expect.objectContaining({ code: "REF_NOT_FOUND" }));
+    expect(() => table.resolve(last)).toThrow(expect.objectContaining({ code: "REF_STALE" }));
+  });
 });

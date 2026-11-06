@@ -1,6 +1,6 @@
 import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join, resolve, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { z } from "zod";
 import { resolveElement } from "../core/element.js";
 import { CuyError } from "../core/errors.js";
@@ -8,17 +8,46 @@ import { homeDir } from "../core/paths.js";
 import { defineTool } from "../core/registry.js";
 import { pageHost, quotePageText } from "../core/security/classify.js";
 
+/** Credenciales, claves y perfiles de navegador. Cada entrada bloquea esa ruta y todo lo que contenga. */
+const PROTECTED = [
+  ".ssh",
+  ".gnupg",
+  ".aws",
+  ".azure",
+  ".kube",
+  ".docker",
+  ".config/gcloud",
+  ".config/gh",
+  ".config/google-chrome",
+  ".config/chromium",
+  ".local/share/keyrings",
+  ".password-store",
+  ".netrc",
+  ".npmrc",
+  ".pypirc",
+  ".git-credentials",
+  "Library/Keychains",
+  "Library/Cookies",
+  "Library/Application Support/Google/Chrome",
+  "AppData/Local/Google/Chrome/User Data",
+];
+
 function protectedDirs(): string[] {
   const home = homedir();
-  return [homeDir(), ...[".ssh", ".gnupg", ".aws", ".kube", ".config/gcloud"].map((dir) => join(home, dir))].map(
-    (dir) => {
-      try {
-        return realpathSync(dir);
-      } catch {
-        return resolve(dir);
-      }
-    },
-  );
+  return [homeDir(), ...PROTECTED.map((dir) => join(home, dir))].map((dir) => {
+    try {
+      return realpathSync(dir);
+    } catch {
+      return resolve(dir);
+    }
+  });
+}
+
+/** La persona tiene que ver qué archivo aprueba: si no cabe, se recorta por el principio y se conserva el nombre. */
+function displayPath(path: string): string {
+  const home = homedir();
+  const short = path === home || path.startsWith(`${home}${sep}`) ? `~${path.slice(home.length)}` : path;
+  return short.length > 80 ? `…${short.slice(-79)}` : short;
 }
 
 /** Se resuelven los enlaces simbólicos para que uno no pueda apuntar a una carpeta protegida. */
@@ -49,7 +78,7 @@ export default defineTool({
   risk: "sensitive",
   cli: { positional: ["ref"] },
   gate: async ({ session }, { paths }) => {
-    const names = checkPaths(paths).map((path) => quotePageText(basename(path)));
+    const names = checkPaths(paths).map((path) => quotePageText(displayPath(path)));
     return {
       kinds: ["file_upload"],
       description: `Subir ${names.join(", ")} a ${pageHost(session.activeTab())}.`,

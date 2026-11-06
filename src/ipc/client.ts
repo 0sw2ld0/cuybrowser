@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { closeSync, openSync } from "node:fs";
+import { closeSync, openSync, renameSync, statSync } from "node:fs";
 import { connect, type Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import type { ApprovalInfo } from "../core/core.js";
@@ -29,8 +29,20 @@ function daemonArgs(): string[] {
   return [fileURLToPath(new URL("../core/daemon-main.js", here))];
 }
 
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
+
+/** Se rota al arrancar, cuando ningún daemon tiene el archivo abierto. Se conserva el anterior como .1. */
+function rotateLog(): void {
+  try {
+    if (statSync(logPath()).size > MAX_LOG_BYTES) renameSync(logPath(), `${logPath()}.1`);
+  } catch {
+    // Sin log previo no hay nada que rotar.
+  }
+}
+
 function startDaemon(): void {
   ensureHome();
+  rotateLog();
   const log = openSync(logPath(), "a", 0o600);
   const child = spawn(process.execPath, daemonArgs(), {
     detached: true,
