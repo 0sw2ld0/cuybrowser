@@ -205,7 +205,7 @@ confirm:               # acciones que requieren aprobación humana
   - downloads           # se retienen en cuarentena hasta aprobar (ver §6.2)
   - evaluate
 sensitive_fields:
-  block_typing: true    # bloquea type en campos password, tarjeta o CVV (autocomplete=cc-*), etc.
+  block_typing: true    # bloquea type, y press_key con el foco en ellos, en campos password, tarjeta o CVV (autocomplete=cc-*), etc.
 evaluate:
   enabled: false
 audit:

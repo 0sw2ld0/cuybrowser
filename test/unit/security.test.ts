@@ -3,6 +3,7 @@ import { dialogCommands } from "../../src/core/security/approver.js";
 import { redactParams } from "../../src/core/security/audit.js";
 import { ConfirmationStore } from "../../src/core/security/confirm.js";
 import { defaultPolicy, isUrlAllowed } from "../../src/core/security/policy.js";
+import { writesIntoField } from "../../src/core/security/sensitive.js";
 import { looksLikeInjection, wrapPageContent } from "../../src/core/security/untrusted.js";
 
 function policy(allow: string[], deny: string[]) {
@@ -30,6 +31,20 @@ describe("política de dominios", () => {
   it("no se deja engañar por credenciales en la URL", () => {
     expect(isUrlAllowed(policy([], ["bank.com"]), "https://otro.org@bank.com/")).toBe(false);
     expect(isUrlAllowed(policy(["otro.org"], []), "https://otro.org@malo.example/")).toBe(false);
+  });
+});
+
+describe("teclas en campos sensibles", () => {
+  it("bloquea todo lo que escribe, borra o pega", () => {
+    for (const key of ["a", "Shift+A", "Digit1", "Space", "Backspace", "Delete", "Control+V", "Meta+v", "Shift+Insert", "Control++", ""]) {
+      expect(writesIntoField(key), key).toBe(true);
+    }
+  });
+
+  it("deja moverse, salir y enviar", () => {
+    for (const key of ["Tab", "Shift+Tab", "Escape", "Enter", "ArrowLeft", "Shift+End", "Alt+ArrowLeft", "PageDown", "Shift"]) {
+      expect(writesIntoField(key), key).toBe(false);
+    }
   });
 });
 

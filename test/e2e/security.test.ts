@@ -307,6 +307,28 @@ describe("campos sensibles", () => {
     expect((await call("type", { ref: await refOf('"Contraseña"'), text: "clave-permitida" })).ok).toBe(true);
     expect((await call("snapshot")).data.text).not.toContain("clave-permitida");
   });
+
+  it("press_key no escribe en un campo sensible con el foco, pero deja salir de él", async () => {
+    // evaluate solo sirve aquí para leer el valor, que el snapshot oculta.
+    setPolicy("confirm: []\nevaluate:\n  enabled: true\n");
+    const passwordValue = async () =>
+      (await call("evaluate", { expression: "document.querySelector('[name=pass]').value" })).data.value;
+    await open("login");
+    expect((await call("click", { ref: await refOf('"Contraseña"') })).ok).toBe(true);
+    for (const key of ["x", "Shift+X", "Space", "Backspace", "Meta+v", "Control+V"]) {
+      expect((await call("press_key", { key })).error?.code, key).toBe("SENSITIVE_FIELD");
+    }
+    expect(await passwordValue()).toBe("secreto-precargado");
+
+    expect((await call("press_key", { key: "Tab" })).ok).toBe(true);
+    expect((await call("press_key", { key: "x" })).ok).toBe(true);
+    expect((await call("press_key", { key: "Shift+Tab" })).ok).toBe(true);
+    expect((await call("press_key", { key: "x" })).error?.code).toBe("SENSITIVE_FIELD");
+
+    setPolicy("confirm: []\nsensitive_fields:\n  block_typing: false\nevaluate:\n  enabled: true\n");
+    expect((await call("press_key", { key: "x" })).ok).toBe(true);
+    expect(await passwordValue()).toContain("x");
+  });
 });
 
 describe("contenido no confiable", () => {

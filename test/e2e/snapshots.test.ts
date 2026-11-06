@@ -206,6 +206,12 @@ describe("iframes", () => {
     const text = await openFrames();
     const password = await call("type", { ref: refIn(text, '"Clave interna"', 1), text: "x" });
     expect(password.error.code).toBe("SENSITIVE_FIELD");
+    // type enfoca el campo por CDP; Tab lleva el foco a la contraseña sin depender de un clic.
+    for (const occurrence of [0, 1]) {
+      expect((await call("type", { ref: refIn(text, '"Campo interno"', occurrence), text: "" })).ok).toBe(true);
+      expect((await call("press_key", { key: "Tab" })).ok).toBe(true);
+      expect((await call("press_key", { key: "x" })).error?.code, `iframe ${occurrence}`).toBe("SENSITIVE_FIELD");
+    }
 
     const submit = await call("click", { ref: refIn(text, '"Enviar dentro"', 0) });
     expect(submit.error.code).toBe("CONFIRMATION_REQUIRED");
