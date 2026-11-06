@@ -3,6 +3,7 @@ import { CuyError, type ToolResponse } from "../errors.js";
 import type { Decision } from "./approver.js";
 
 const EXPIRY_MS = 2 * 60_000;
+const MAX_USED_IDS = 1000;
 
 export interface PendingConfirmation {
   id: string;
@@ -95,6 +96,11 @@ export class ConfirmationStore {
       throw denied("Esta confirmación ya se usó. Revisa el estado de la página antes de repetir la acción.");
     }
     this.used.add(pending.id);
+    // Los ids son aleatorios y expiran en 2 minutos: basta con recordar los últimos para dar un error claro.
+    for (const id of this.used) {
+      if (this.used.size <= MAX_USED_IDS) break;
+      this.used.delete(id);
+    }
     this.drop(pending, false);
   }
 

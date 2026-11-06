@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
-import { closeSync, openSync } from "node:fs";
+import { closeSync, openSync, renameSync, statSync } from "node:fs";
 import { connect, type Socket } from "node:net";
 import { fileURLToPath } from "node:url";
 import type { ApprovalInfo } from "../core/core.js";
 import type { ToolResponse } from "../core/errors.js";
 import type { BrowserEvent } from "../core/events.js";
 import { ensureHome, logPath, socketPath } from "../core/paths.js";
+import { VERSION } from "../core/version.js";
 import { lineReader, type IpcReply, type IpcRequest } from "./protocol.js";
 
 const AUTOSTART_TIMEOUT_MS = 10_000;
@@ -28,8 +29,20 @@ function daemonArgs(): string[] {
   return [fileURLToPath(new URL("../core/daemon-main.js", here))];
 }
 
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
+
+/** Se rota al arrancar, cuando ningún daemon tiene el archivo abierto. Se conserva el anterior como .1. */
+function rotateLog(): void {
+  try {
+    if (statSync(logPath()).size > MAX_LOG_BYTES) renameSync(logPath(), `${logPath()}.1`);
+  } catch {
+    // Sin log previo no hay nada que rotar.
+  }
+}
+
 function startDaemon(): void {
   ensureHome();
+  rotateLog();
   const log = openSync(logPath(), "a", 0o600);
   const child = spawn(process.execPath, daemonArgs(), {
     detached: true,
@@ -40,12 +53,47 @@ function startDaemon(): void {
   closeSync(log);
 }
 
+/** Compara versiones x.y.z. Sin versión, el daemon es anterior a esta comprobación y cuenta como más antiguo. */
+export function isOlderVersion(version: string | undefined, than: string): boolean {
+  if (!version) return true;
+  const parts = (value: string) => value.split(/[.+-]/).slice(0, 3).map((part) => Number.parseInt(part, 10) || 0);
+  const a = parts(version);
+  const b = parts(than);
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) < (b[i] ?? 0);
+  }
+  return false;
+}
+
+let versionChecked = false;
+let restartNotice: string | null = null;
+
+/**
+ * Tras actualizar, el daemon anterior seguiría sirviendo el código viejo: se reinicia una vez por proceso.
+ * Uno más nuevo se respeta, para que un cliente viejo y uno nuevo no se reinicien el daemon entre sí.
+ */
+async function replaceIfOutdated(socket: Socket): Promise<Socket | null> {
+  if (versionChecked) return socket;
+  versionChecked = true;
+  const info = await daemonInfo();
+  if (!info || !isOlderVersion(info.version, VERSION)) return socket;
+  socket.destroy();
+  await stopDaemon();
+  restartNotice =
+    `Se reinició el daemon de la versión ${info.version ?? "anterior"} para usar la ${VERSION}. ` +
+    "Chrome se cerró: si hace falta, vuelve a ejecutar start.";
+  return null;
+}
+
 async function openWithAutostart(): Promise<Socket> {
   try {
-    return await open();
+    const socket = await replaceIfOutdated(await open());
+    if (socket) return socket;
   } catch {
-    startDaemon();
+    // No hay daemon: el que se arranca aquí es de esta misma versión.
   }
+  versionChecked = true;
+  startDaemon();
   const deadline = Date.now() + AUTOSTART_TIMEOUT_MS;
   let lastError: unknown;
   while (Date.now() < deadline) {
@@ -78,7 +126,7 @@ export async function callTool(tool: string, params: unknown): Promise<ToolRespo
     const socket = await openWithAutostart();
     const reply = await exchange(socket, { id: 1, type: "tool", tool, params });
     if (reply.type !== "tool") throw new Error("Respuesta inesperada del daemon.");
-    return reply.response;
+    return withRestartNotice(reply.response);
   } catch (err) {
     return {
       ok: false,
@@ -135,14 +183,28 @@ export async function resolveApproval(
   return reply.error;
 }
 
+/** El aviso de reinicio llega una sola vez, en la primera respuesta después de reiniciar. */
+function withRestartNotice(response: ToolResponse): ToolResponse {
+  const notice = restartNotice;
+  if (!notice) return response;
+  restartNotice = null;
+  if (response.ok) return { ...response, warnings: [notice, ...response.warnings] };
+  const hint = response.error.hint ? `${notice} ${response.error.hint}` : notice;
+  return { ...response, error: { ...response.error, hint } };
+}
+
 /** No arranca el daemon: consultar o detener uno inexistente no debe crearlo. */
-export async function daemonPid(): Promise<number | null> {
+export async function daemonInfo(): Promise<{ pid: number; version: string | undefined } | null> {
   try {
     const reply = await exchange(await open(), { id: 1, type: "ping" });
-    return reply.type === "pong" ? reply.pid : null;
+    return reply.type === "pong" ? { pid: reply.pid, version: reply.version } : null;
   } catch {
     return null;
   }
+}
+
+export async function daemonPid(): Promise<number | null> {
+  return (await daemonInfo())?.pid ?? null;
 }
 
 export async function stopDaemon(): Promise<boolean> {

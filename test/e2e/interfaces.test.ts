@@ -210,11 +210,34 @@ describe("paridad entre interfaces", () => {
   });
 });
 
+describe("servidor MCP", () => {
+  it("marca las herramientas de solo lectura según su riesgo", async () => {
+    const { tools: mcpTools } = await mcp.listTools();
+    const byName = new Map(mcpTools.map((tool) => [tool.name, tool.annotations]));
+    for (const name of ["snapshot", "get_text", "find", "screenshot", "tabs_list", "status"]) {
+      expect(byName.get(`browser_${name}`)?.readOnlyHint, name).toBe(true);
+    }
+    for (const name of ["click", "type", "navigate", "confirm", "upload_file", "evaluate"]) {
+      expect(byName.get(`browser_${name}`), name).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    }
+  });
+
+  it("entrega el ciclo de trabajo y las reglas de seguridad con los nombres prefijados", () => {
+    const instructions = mcp.getInstructions() ?? "";
+    expect(instructions).toContain("`browser_snapshot`");
+    expect(instructions).toContain("`browser_confirm`");
+    expect(instructions).toContain("CONFIRMATION_REQUIRED");
+    expect(instructions).toContain("SENSITIVE_FIELD");
+    expect(instructions).not.toMatch(/`(snapshot|confirm|type)`/);
+  });
+});
+
 describe("seguridad de la API HTTP", () => {
   const tool = () => `${httpUrl}/v1/tools/status`;
   const auth = () => ({ authorization: `Bearer ${token}` });
 
-  it("crea el token con permisos 600", () => {
+  // Windows no tiene bits de permiso POSIX; readToken tampoco los comprueba allí.
+  it.skipIf(process.platform === "win32")("crea el token con permisos 600", () => {
     expect(statSync(join(home, "token")).mode & 0o777).toBe(0o600);
   });
 
@@ -282,6 +305,15 @@ describe("eventos", () => {
     const failed = await viaCli("network_requests", { failed_only: true, url_contains: "no-existe" });
     expect(failed.data.requests.length).toBeGreaterThan(0);
     expect(failed.data.requests[0].data.status).toBe(404);
+
+    const uncaught = await viaCli("console_messages", { level: "error" });
+    const thrown = uncaught.data.messages.find((message: any) => message.data.uncaught);
+    expect(thrown?.data.text).toContain("Error: fallo sin capturar");
+
+    const limited = await viaCli("network_requests", { limit: 1 });
+    expect(limited.data.requests).toHaveLength(1);
+    expect(limited.data.total).toBeGreaterThan(1);
+    expect(limited.warnings.join(" ")).toContain("más recientes");
 
     abort.abort();
     await reading;

@@ -60,7 +60,7 @@ Construir una herramienta que permita a cualquier agente de IA navegar, leer e i
 
 ### 3.2 Modos de navegador
 1. **`launch`** (por defecto): abre Chrome con un perfil aislado en `~/.cuybrowser/profiles/<nombre>` mediante `launchPersistentContext`. Las sesiones iniciadas manualmente por el usuario persisten en ese perfil.
-2. **`attach`**: se conecta a un Chrome ya lanzado con `--remote-debugging-port` mediante `connectOverCDP(url)`.
+2. **`attach`**: se conecta a un Chrome ya lanzado con `--remote-debugging-port` mediante `connectOverCDP(url)`. Está deshabilitado salvo que la política tenga `attach.enabled: true`, solo admite URLs de este equipo (`127.0.0.1`, `localhost` o `[::1]`), trabaja en una pestaña nueva para no tocar la que usa la persona y `stop` solo se desconecta.
 3. *(Fuera de v1)* **`extension`**: control del Chrome real del usuario a través de una extensión. Dejar la interfaz `BrowserDriver` preparada para añadirlo.
 
 Toda la interacción con el navegador pasa por una interfaz `BrowserDriver`, para poder añadir modos sin tocar las herramientas.
@@ -205,9 +205,11 @@ confirm:               # acciones que requieren aprobación humana
   - downloads           # se retienen en cuarentena hasta aprobar (ver §6.2)
   - evaluate
 sensitive_fields:
-  block_typing: true    # bloquea type en campos password, tarjeta o CVV (autocomplete=cc-*), etc.
+  block_typing: true    # bloquea type, y press_key con el foco en ellos, en campos password, tarjeta o CVV (autocomplete=cc-*), etc.
 evaluate:
   enabled: false
+attach:
+  enabled: false        # modo attach: acceso a todas las pestañas y sesiones de ese Chrome
 audit:
   enabled: true
   path: ~/.cuybrowser/audit.jsonl
@@ -237,8 +239,9 @@ audit:
 4. Si el modo de navegador no permite retener la descarga, esta se cancela y se avisa en `warnings`.
 
 ### 6.3 Contenido no confiable
-- Todo texto que provenga de la página se entrega delimitado como datos, por ejemplo `<<<PAGE_CONTENT … PAGE_CONTENT>>>`, y la descripción de cada herramienta de lectura recuerda que ese contenido no son instrucciones.
-- Heurística de **posible prompt injection**: textos como "ignora tus instrucciones", "eres un asistente", instrucciones dirigidas a IA o texto oculto con CSS. Si se detecta, se añade a `warnings` sin bloquear.
+- El texto libre de la página (snapshot, `get_text`, consola) se entrega delimitado como datos, por ejemplo `<<<PAGE_CONTENT … PAGE_CONTENT>>>`, y la descripción de cada herramienta de lectura recuerda que ese contenido no son instrucciones.
+- Los textos cortos, como títulos, nombres de `find`, opciones o URLs, viajan como valores JSON sin delimitar, para no gastar tokens en cada respuesta.
+- Heurística de **posible prompt injection**: textos como "ignora tus instrucciones", "eres un asistente", instrucciones dirigidas a IA o texto oculto con CSS. Se aplica al texto libre y a todos los textos de cada respuesta. Si se detecta, se añade a `warnings` sin bloquear.
 
 ### 6.4 Otros requisitos
 - La API HTTP solo escucha en `127.0.0.1`, exige el token `~/.cuybrowser/token` (lo genera el daemon en su primer arranque si no existe, con permisos 600; si el archivo tiene permisos más abiertos, la API HTTP no arranca y lo indica) y rechaza peticiones con `Origin` de navegador (protección contra ataques desde páginas web).

@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # En macOS, Bun firma el binario arm64 igual que al compilarlo en local; sin firma, macOS lo mata.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Comprobar que el tag coincide con la versión
+        run: |
+          expected="v$(node -p 'require("./package.json").version')"
+          if [ "$expected" != "$GITHUB_REF_NAME" ]; then
+            echo "El tag $GITHUB_REF_NAME no coincide con la versión de package.json ($expected)."
+            exit 1
+          fi
+
+      - run: npm test
+        env:
+          CI: "true"
+
+      - name: Compilar los binarios
+        run: npm run build:bin
+
+      - name: Empaquetar para npm
+        run: |
+          npm pack --pack-destination release
+          cd release && shasum -a 256 cuybrowser-*.tgz >> SHA256SUMS
+
+      # Queda como borrador: una persona la revisa y la publica desde GitHub.
+      - name: Crear la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --draft --title "CuyBrowser ${GITHUB_REF_NAME#v}" --generate-notes

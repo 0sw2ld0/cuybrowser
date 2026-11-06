@@ -3,7 +3,7 @@ import { resolveElement, watchNavigation } from "../core/element.js";
 import { CuyError } from "../core/errors.js";
 import { defineTool } from "../core/registry.js";
 import { typeGate } from "../core/security/classify.js";
-import { classifySensitive } from "../core/security/sensitive.js";
+import { classifySensitive, SENSITIVE_HINT } from "../core/security/sensitive.js";
 
 const IS_EDITABLE = `function(){
   if(this.disabled||this.readOnly)return false;
@@ -51,7 +51,7 @@ export default defineTool({
         throw new CuyError(
           "SENSITIVE_FIELD",
           `La escritura en ${ref} está bloqueada: es un campo sensible (${kind}).`,
-          "Pide a la persona usuaria que lo complete directamente en el navegador.",
+          SENSITIVE_HINT,
         );
       }
       if (!(await element.call<boolean>(IS_EDITABLE))) throw element.notInteractable("no es editable");

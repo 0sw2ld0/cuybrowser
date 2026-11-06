@@ -5,6 +5,7 @@ import type { ToolResponse } from "../core/errors.js";
 import type { AnyTool } from "../core/registry.js";
 import { toolInputSchema } from "../core/schema.js";
 import { VERSION } from "../core/version.js";
+import { mcpInstructions } from "../docs/generate.js";
 import { approvalInfo, callTool, resolveApproval } from "../ipc/client.js";
 
 function warningsText(warnings: string[]): string {
@@ -32,14 +33,23 @@ function toMcpResult(response: ToolResponse) {
   return { content: [{ type: "text" as const, text: JSON.stringify(response) }] };
 }
 
+/** Pistas para el cliente, derivadas del riesgo de cada herramienta. Las acciones quedan como posiblemente destructivas. */
+function annotations(tool: AnyTool) {
+  return tool.risk === "read" ? { readOnlyHint: true } : { readOnlyHint: false, destructiveHint: true };
+}
+
 export async function runMcp(tools: readonly AnyTool[], prefix: string): Promise<void> {
-  const server = new Server({ name: "cuybrowser", version: VERSION }, { capabilities: { tools: {} } });
+  const server = new Server(
+    { name: "cuybrowser", version: VERSION },
+    { capabilities: { tools: {} }, instructions: mcpInstructions(prefix) },
+  );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: tools.map((tool) => ({
       name: `${prefix}${tool.name}`,
       description: tool.description,
       inputSchema: toolInputSchema(tool),
+      annotations: annotations(tool),
     })),
   }));
 

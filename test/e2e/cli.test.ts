@@ -4,8 +4,12 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createServer, type Socket } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { socketPath } from "../../src/core/paths.js";
+import { VERSION } from "../../src/core/version.js";
 import { callTool, stopDaemon } from "../../src/ipc/client.js";
+import { lineReader } from "../../src/ipc/protocol.js";
 import { startFixtureServer } from "../fixtures/server.js";
 
 // Con CUYBROWSER_TEST_BIN, las mismas pruebas se ejecutan contra un binario compilado.
@@ -207,6 +211,17 @@ describe("CLI contra Chrome real", () => {
     expect(samples[7]).toBeLessThan(300);
   }, 30_000);
 
+  it("informa de la navegación aunque su petición salga tarde, y navigate no choca con ella", async () => {
+    await cli("navigate", `${base}/lenta`);
+    const clicked = await json("click", await refOf('button "Continuar"'));
+    expect(clicked.ok, JSON.stringify(clicked)).toBe(true);
+    expect(clicked.data.navigated).toBe(true);
+    expect(clicked.data.url).toContain("/welcome");
+    const next = await json("navigate", `${base}/login`);
+    expect(next.ok, JSON.stringify(next)).toBe(true);
+    expect(next.data.url).toContain("/login");
+  }, 30_000);
+
   it("arranca un solo daemon y lo detiene con su socket", async () => {
     const results = await Promise.all([cli("daemon", "status"), cli("status")]);
     expect(results[0].stdout).toContain("en marcha");
@@ -214,5 +229,39 @@ describe("CLI contra Chrome real", () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(existsSync(join(home, "daemon.sock"))).toBe(false);
     expect((await cli("daemon", "status")).stdout).toContain("detenido");
+  }, 30_000);
+
+  it("reinicia un daemon de una versión anterior y avisa una vez", async () => {
+    await stopDaemon();
+    // Responde como un daemon compilado antes de la comprobación: su pong no trae versión.
+    const received: string[] = [];
+    const sockets = new Set<Socket>();
+    const old = createServer((socket) => {
+      sockets.add(socket);
+      socket.setEncoding("utf8");
+      socket.on(
+        "data",
+        lineReader((line) => {
+          const request = JSON.parse(line) as { id: number; type: string };
+          received.push(request.type);
+          if (request.type === "ping") socket.write(`${JSON.stringify({ id: request.id, type: "pong", pid: 1 })}\n`);
+          if (request.type === "shutdown") {
+            socket.write(`${JSON.stringify({ id: request.id, type: "bye" })}\n`);
+            old.close();
+            for (const open of sockets) open.destroy();
+          }
+        }),
+      );
+    });
+    await new Promise<void>((resolve) => old.listen(socketPath(), resolve));
+
+    const status = await json("status");
+    expect(status.ok, JSON.stringify(status)).toBe(true);
+    expect(status.warnings.join(" ")).toContain(`para usar la ${VERSION}`);
+    expect(received).toContain("shutdown");
+    expect(received).not.toContain("tool");
+    expect((await cli("daemon", "status")).stdout).toContain(`versión ${VERSION}`);
+    // El daemon nuevo es de esta versión: no se vuelve a reiniciar ni a avisar.
+    expect((await json("status")).warnings).toEqual([]);
   }, 30_000);
 });

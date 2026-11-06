@@ -8,7 +8,7 @@ import type { AnyTool } from "../core/registry.js";
 import { toolInputSchema } from "../core/schema.js";
 import { VERSION } from "../core/version.js";
 import { DOC_FORMATS, generateDocs, type DocFormat } from "../docs/generate.js";
-import { callTool, daemonPid, resolveApproval, stopDaemon } from "../ipc/client.js";
+import { callTool, daemonInfo, resolveApproval, stopDaemon } from "../ipc/client.js";
 import { tools } from "../tools/index.js";
 
 interface ImageData {
@@ -176,8 +176,10 @@ daemon
   .command("status")
   .description("Indica si el daemon está en marcha.")
   .action(async () => {
-    const pid = await daemonPid();
-    console.log(pid === null ? "detenido" : `en marcha (pid ${pid})`);
+    const info = await daemonInfo();
+    console.log(
+      info === null ? "detenido" : `en marcha (pid ${info.pid}, versión ${info.version ?? "desconocida"})`,
+    );
   });
 daemon
   .command("stop")

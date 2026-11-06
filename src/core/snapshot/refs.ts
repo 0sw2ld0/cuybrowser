@@ -5,6 +5,9 @@ export interface RefTarget {
   frameKey: string;
 }
 
+/** Solo sirven para explicar mejor el error; en una sesión larga no deben crecer sin límite. */
+export const MAX_STALE_REFS = 10_000;
+
 function mapKey(frameKey: string, backendNodeId: number): string {
   return `${frameKey}:${backendNodeId}`;
 }
@@ -47,6 +50,11 @@ export class RefTable {
       this.stale.add(ref);
       this.refToNode.delete(ref);
       this.nodeToRef.delete(mapKey(target.frameKey, target.backendNodeId));
+    }
+    // Un Set recorre en orden de inserción: se olvidan primero las más antiguas.
+    for (const ref of this.stale) {
+      if (this.stale.size <= MAX_STALE_REFS) break;
+      this.stale.delete(ref);
     }
   }
 }

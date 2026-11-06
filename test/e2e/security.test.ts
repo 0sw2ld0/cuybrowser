@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { Server } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -307,6 +307,28 @@ describe("campos sensibles", () => {
     expect((await call("type", { ref: await refOf('"Contraseña"'), text: "clave-permitida" })).ok).toBe(true);
     expect((await call("snapshot")).data.text).not.toContain("clave-permitida");
   });
+
+  it("press_key no escribe en un campo sensible con el foco, pero deja salir de él", async () => {
+    // evaluate solo sirve aquí para leer el valor, que el snapshot oculta.
+    setPolicy("confirm: []\nevaluate:\n  enabled: true\n");
+    const passwordValue = async () =>
+      (await call("evaluate", { expression: "document.querySelector('[name=pass]').value" })).data.value;
+    await open("login");
+    expect((await call("click", { ref: await refOf('"Contraseña"') })).ok).toBe(true);
+    for (const key of ["x", "Shift+X", "Space", "Backspace", "Meta+v", "Control+V"]) {
+      expect((await call("press_key", { key })).error?.code, key).toBe("SENSITIVE_FIELD");
+    }
+    expect(await passwordValue()).toBe("secreto-precargado");
+
+    expect((await call("press_key", { key: "Tab" })).ok).toBe(true);
+    expect((await call("press_key", { key: "x" })).ok).toBe(true);
+    expect((await call("press_key", { key: "Shift+Tab" })).ok).toBe(true);
+    expect((await call("press_key", { key: "x" })).error?.code).toBe("SENSITIVE_FIELD");
+
+    setPolicy("confirm: []\nsensitive_fields:\n  block_typing: false\nevaluate:\n  enabled: true\n");
+    expect((await call("press_key", { key: "x" })).ok).toBe(true);
+    expect(await passwordValue()).toContain("x");
+  });
 });
 
 describe("contenido no confiable", () => {
@@ -331,8 +353,19 @@ describe("contenido no confiable", () => {
   });
 
   it("no avisa en una página normal", async () => {
-    await open("login");
+    expect((await call("navigate", { url: `${base}/login` })).warnings).toEqual([]);
     expect((await call("snapshot")).warnings).toEqual([]);
+    expect((await call("tabs_list")).warnings).toEqual([]);
+  });
+
+  it("avisa de injection en textos cortos sin delimitar, como el título", async () => {
+    const navigated = await call("navigate", { url: `${base}/titulo` });
+    expect(navigated.ok).toBe(true);
+    expect(navigated.warnings.join(" ")).toContain("prompt injection");
+    expect((await call("tabs_list")).warnings.join(" ")).toContain("prompt injection");
+    // El snapshot ya avisa por su cuenta: no se repite el aviso.
+    const snapshot = await call("snapshot");
+    expect(snapshot.warnings.filter((warning: string) => warning.includes("prompt injection"))).toHaveLength(1);
   });
 });
 
@@ -368,9 +401,9 @@ describe("auditoría", () => {
 });
 
 describe("descargas", () => {
-  const startDownload = async () => {
+  const startDownload = async (label = '"Descargar informe"', filename = "informe.txt") => {
     await open("checkout");
-    const clicked = await call("click", { ref: await refOf('"Descargar informe"') });
+    const clicked = await call("click", { ref: await refOf(label) });
     expect(clicked.ok, JSON.stringify(clicked)).toBe(true);
     let info = clicked.data.pending_download;
     for (let i = 0; !info && i < 20; i++) {
@@ -380,7 +413,7 @@ describe("descargas", () => {
       if (warning) info = JSON.parse(warning.slice(warning.indexOf("{")));
     }
     expect(info).toBeTruthy();
-    expect(info.filename).toBe("informe.txt");
+    expect(info.filename).toBe(filename);
     return info;
   };
   const quarantine = () => readdirSync(join(home, "quarantine"));
@@ -414,6 +447,16 @@ describe("descargas", () => {
     expect(existsSync(downloads)).toBe(false);
   });
 
+  it("no copia una URL data: entera al diálogo ni a la respuesta", async () => {
+    const info = await startDownload('"Descargar datos"', "datos.txt");
+    expect(info.origin.length).toBeLessThan(100);
+    await call("confirm", { confirmation_id: info.confirmation_id });
+    const description = approvals.requests.at(-1)!;
+    expect(description).toContain("datos incrustados en la página");
+    expect(description).not.toContain("xxxxxxxxxx");
+    await waitEmpty();
+  });
+
   it("guarda directamente si la política no pide aprobación", async () => {
     rmSync(downloads, { recursive: true, force: true });
     setPolicy("confirm: []\n");
@@ -438,10 +481,41 @@ describe("subida de archivos", () => {
 
     const id = requirement(await call("upload_file", { ref, paths: [file] }));
     expect(await pageTitle()).toBe("Caja de la tienda");
+    // El diálogo muestra la carpeta, no solo el nombre del archivo.
+    approvals.decision = "denied";
+    await call("confirm", { confirmation_id: requirement(await call("upload_file", { ref, paths: [file] })) });
+    expect(approvals.requests.at(-1)).toContain(`${basename(dirname(file))}/subir.txt`);
     approvals.decision = "approved";
     const confirmed = await call("confirm", { confirmation_id: id });
     expect(confirmed.ok, JSON.stringify(confirmed)).toBe(true);
     expect(await pageTitle()).toBe("Adjunto: subir.txt");
+  });
+
+  // os.homedir() sigue a HOME en macOS y Linux, así que se prueba con una carpeta personal falsa.
+  it.skipIf(process.platform === "win32")("bloquea credenciales conocidas de la carpeta personal", async () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "cb-home-"));
+    mkdirSync(join(fakeHome, ".config", "gh"), { recursive: true });
+    writeFileSync(join(fakeHome, ".config", "gh", "hosts.yml"), "oauth_token: x");
+    writeFileSync(join(fakeHome, ".netrc"), "machine x");
+    writeFileSync(join(fakeHome, "notas.txt"), "hola");
+    const previous = process.env.HOME;
+    process.env.HOME = fakeHome;
+    try {
+      await open("checkout");
+      const ref = await refOf('"Adjunto"');
+      for (const path of [join(fakeHome, ".config", "gh", "hosts.yml"), join(fakeHome, ".netrc")]) {
+        expect((await call("upload_file", { ref, paths: [path] })).error.code, path).toBe("BLOCKED_BY_POLICY");
+      }
+      expect((await call("upload_file", { ref, paths: [join(fakeHome, "notas.txt")] })).error.code).toBe(
+        "CONFIRMATION_REQUIRED",
+      );
+      // En macOS la misma carpeta escrita con mayúsculas existe y debe seguir bloqueada; en Linux no existe.
+      const variant = await call("upload_file", { ref, paths: [join(fakeHome, ".CONFIG", "GH", "hosts.yml")] });
+      expect(variant.error.code).toBe(process.platform === "darwin" ? "BLOCKED_BY_POLICY" : "INVALID_PARAMS");
+    } finally {
+      process.env.HOME = previous;
+      rmSync(fakeHome, { recursive: true, force: true });
+    }
   });
 
   it("rechaza un elemento que no es de archivo", async () => {

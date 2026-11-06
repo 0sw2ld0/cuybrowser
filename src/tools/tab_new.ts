@@ -10,10 +10,10 @@ export default defineTool({
   }),
   risk: "action",
   cli: { positional: ["url"] },
-  handler: async ({ session, policy }, { url }) => {
+  handler: async ({ session, policy, warnings }, { url }) => {
     if (url !== undefined) validateUrl(url, policy);
     const tab = await session.newTab();
-    if (url !== undefined) await navigateTab(tab, url, "load", policy);
+    if (url !== undefined) await navigateTab(tab, url, "load", policy, warnings);
     return { id: tab.id };
   },
 });

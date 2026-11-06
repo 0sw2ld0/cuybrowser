@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Linux y Windows no se habían probado nunca: interesa ver todos los resultados, no solo el primer fallo.
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+        node: [22]
+        include:
+          - os: ubuntu-latest
+            node: 20
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      # Las imágenes de GitHub traen Google Chrome. Ubuntu 24.04 restringe los espacios de nombres
+      # sin privilegios que usa el sandbox de Chrome, que CuyBrowser deja activado.
+      - name: Permitir el sandbox de Chrome en Linux
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Comprobar Chrome
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS) "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version ;;
+            Linux) google-chrome --version ;;
+            Windows) powershell -Command "(Get-Item 'C:\Program Files\Google\Chrome\Application\chrome.exe').VersionInfo.ProductVersion" ;;
+          esac
+
+      - run: npm test
+        env:
+          CI: "true"

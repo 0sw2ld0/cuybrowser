@@ -9,6 +9,7 @@ import type { Approver, Decision } from "./security/approver.js";
 import { redactParams, writeAudit } from "./security/audit.js";
 import { quotePageText, type Gate } from "./security/classify.js";
 import { ConfirmationStore, type PendingConfirmation } from "./security/confirm.js";
+import { warnInjectionInFields } from "./security/untrusted.js";
 import { defaultPolicy, ensurePolicyFile, loadPolicy, type Policy } from "./security/policy.js";
 import { Session, type Tab } from "./session.js";
 
@@ -40,6 +41,26 @@ interface PendingDownload {
 function safeFilename(name: string): string {
   const clean = basename(name.replace(/\\/g, "/")).replace(/[\u0000-\u001f/\\:*?"<>|]/g, "_");
   return clean && clean !== "." && clean !== ".." ? clean : "descarga";
+}
+
+/** Una URL data: lleva el archivo entero dentro: nunca se copia completa al diálogo ni a la respuesta. */
+export function downloadOrigin(url: string): { origin: string; source: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { origin: url.slice(0, 200), source: "un origen desconocido" };
+  }
+  if (parsed.protocol === "data:") {
+    const header = url.slice(0, url.indexOf(",") + 1 || 40).slice(0, 80);
+    return { origin: `${header}…`, source: "datos incrustados en la página (data:)" };
+  }
+  // blob:https://sitio/uuid pertenece al sitio que lo creó.
+  if (parsed.protocol === "blob:") {
+    const inner = downloadOrigin(url.slice("blob:".length));
+    return { origin: url.slice(0, 200), source: inner.source };
+  }
+  return { origin: url.length > 200 ? `${url.slice(0, 200)}…` : url, source: parsed.host || parsed.protocol };
 }
 
 function freePath(dir: string, filename: string): string {
@@ -160,8 +181,9 @@ export class Core {
         throw this.confirmationRequired(pending);
       }
 
-      const data = await this.runInterruptible(tool, ctx, parsed.data, tab);
-      response = { ok: true, data: this.attachDownloads(tool, data, warnings), warnings };
+      const data = this.attachDownloads(tool, await this.runInterruptible(tool, ctx, parsed.data, tab), warnings);
+      warnInjectionInFields(data, warnings);
+      response = { ok: true, data, warnings };
     } catch (err) {
       response = { ok: false, error: toToolError(err) };
     }
@@ -235,7 +257,7 @@ export class Core {
 
   private async handleDownload(tab: Tab, download: Download): Promise<void> {
     const filename = safeFilename(download.suggestedFilename());
-    const origin = download.url();
+    const { origin, source } = downloadOrigin(download.url());
     const push = (data: Record<string, unknown>) =>
       this.session.events.push("download", tab.id, { filename, origin, ...data });
     let policy: Policy;
@@ -265,7 +287,7 @@ export class Core {
       void saved.then(() => rmSync(quarantined, { force: true }));
     };
     const pending = this.store.create(
-      `Descargar el archivo ${quotePageText(filename)} desde ${new URL(origin).host || origin}.`,
+      `Descargar el archivo ${quotePageText(filename)} desde ${source}.`,
       async () => {
         if (!(await saved)) {
           return { ok: false, error: { code: "INTERNAL", message: "La descarga no se completó." } };

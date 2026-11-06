@@ -1,6 +1,8 @@
+import type { Frame, Page } from "playwright-core";
 import { resolveElement } from "../element.js";
 import type { Tab } from "../session.js";
 import type { ConfirmKind } from "./policy.js";
+import { classifySensitive, type SensitiveKind } from "./sensitive.js";
 
 export interface Gate {
   kinds: ConfirmKind[];
@@ -30,12 +32,60 @@ const CLASSIFY = `function(){
   return {submit:Boolean(form&&isSubmitButton),implicit_submit:Boolean(form&&isTextInput),form:String(label),text:String(text)};
 }`;
 
-const ACTIVE_ELEMENT = `(() => {
-  let el = document.activeElement;
-  while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
-  if (!el || !document.hasFocus() || el.tagName === 'IFRAME' || el.tagName === 'FRAME') return null;
-  return (${CLASSIFY}).call(el);
-})()`;
+const ATTRIBUTES = `function(){
+  const attrs={};
+  for(const attr of this.attributes??[])attrs[attr.name]=attr.value;
+  return attrs;
+}`;
+
+/** Se ejecuta en el documento padre de un iframe. */
+function isFocusedFrame(owner: Element): boolean {
+  let active = document.activeElement;
+  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+  return active === owner;
+}
+
+/**
+ * Sigue el foco desde el documento principal hasta el iframe que lo tiene. No usa document.hasFocus(),
+ * que en un iframe de otro sitio depende de que la ventana de Chrome esté activa.
+ */
+async function focusedFrame(page: Page): Promise<Frame> {
+  let frame = page.mainFrame();
+  for (let depth = 0; depth < 10; depth++) {
+    let next: Frame | null = null;
+    for (const child of frame.childFrames()) {
+      const owner = await child.frameElement().catch(() => null);
+      if (!owner) continue;
+      const focused = await owner.evaluate(isFocusedFrame).catch(() => false);
+      await owner.dispose();
+      if (focused) {
+        next = child;
+        break;
+      }
+    }
+    if (!next) return frame;
+    frame = next;
+  }
+  return frame;
+}
+
+/** Ejecuta fn sobre el elemento con el foco, que puede estar dentro de un iframe o de shadow DOM abierto. */
+async function onFocused<T>(tab: Tab, fn: string): Promise<T | null> {
+  const frame = await focusedFrame(tab.page);
+  const script = `(() => {
+    let el = document.activeElement;
+    while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
+    if (!el || el.tagName === 'IFRAME' || el.tagName === 'FRAME') return null;
+    return (${fn}).call(el);
+  })()`;
+  return ((await frame.evaluate(script).catch(() => null)) as T | null) ?? null;
+}
+
+/** Tipo de campo sensible que tiene el foco, o null. */
+export async function focusedSensitiveKind(tab: Tab): Promise<SensitiveKind | null> {
+  const attrs = await onFocused<Record<string, string>>(tab, ATTRIBUTES);
+  return attrs ? classifySensitive(attrs) : null;
+}
 
 /** Recorta y limpia un texto de la página antes de mostrarlo en una solicitud de aprobación. */
 function pageText(text: string): string {
@@ -99,12 +149,7 @@ export async function keyGate(tab: Tab, key: string): Promise<Gate | null> {
   const isEnter = /(^|\+)(Enter|NumpadEnter)$/i.test(key);
   const isSpace = /(^|\+)(Space| )$/i.test(key);
   if (!isEnter && !isSpace) return null;
-  // El foco puede estar dentro de un iframe: solo el frame que lo tiene devuelve algo.
-  let info: TargetInfo | null = null;
-  for (const frame of tab.page.frames()) {
-    info = (await frame.evaluate(ACTIVE_ELEMENT).catch(() => null)) as TargetInfo | null;
-    if (info) break;
-  }
+  const info = await onFocused<TargetInfo>(tab, CLASSIFY);
   if (!info) return null;
   if (info.submit) return submitGate(tab, info, `con el botón ${pageText(info.text)}`);
   if (isEnter && info.implicit_submit) return submitGate(tab, info, "pulsando Enter");

@@ -1,4 +1,5 @@
 import type { BrowserContext, CDPSession, Dialog, Download, Frame, Page, Route } from "playwright-core";
+import { AttachDriver, DEFAULT_CDP_URL } from "./driver/attach.js";
 import { LaunchDriver } from "./driver/launch.js";
 import type { BrowserDriver, StartOptions } from "./driver/types.js";
 import { CuyError } from "./errors.js";
@@ -30,6 +31,10 @@ export class Tab {
   cdp(): Promise<CDPSession> {
     this.session ??= this.openSession();
     return this.session;
+  }
+
+  isMainFrame(frameId: string): boolean {
+    return frameId === this.mainFrameId;
   }
 
   onDialog(listener: (dialog: Dialog) => void): () => void {
@@ -171,7 +176,8 @@ export class Session {
 
   async start(options: StartOptions): Promise<boolean> {
     if (this.running) return false;
-    const driver = new LaunchDriver(options);
+    const driver =
+      options.mode === "attach" ? new AttachDriver(options.cdp_url ?? DEFAULT_CDP_URL) : new LaunchDriver(options);
     const context = await driver.start();
     this.driver = driver;
     this.context = context;
@@ -182,6 +188,8 @@ export class Session {
       if (this.context === context) this.reset();
     });
     for (const page of context.pages()) this.register(page);
+    // Las pestañas que ya estaban son de la persona: el agente trabaja en una propia salvo que elija otra.
+    if (options.mode === "attach") await this.newTab();
     return true;
   }
 
@@ -232,6 +240,10 @@ export class Session {
     });
     page.on("console", (message) => {
       this.events.push("console", id, { level: message.type(), text: message.text() });
+    });
+    // Las excepciones no capturadas no llegan como mensaje de consola.
+    page.on("pageerror", (error) => {
+      this.events.push("console", id, { level: "error", text: `${error.name}: ${error.message}`, uncaught: true });
     });
     page.on("response", (response) => {
       const request = response.request();
@@ -328,7 +340,8 @@ export class Session {
     return {
       running: true,
       mode: this.driver.mode,
-      profile: this.driver.profile,
+      ...(this.driver.profile === null ? {} : { profile: this.driver.profile }),
+      ...(this.driver.endpoint === null ? {} : { cdp_url: this.driver.endpoint }),
       active_tab: this.activeId,
       tabs: await this.listTabs(),
     };

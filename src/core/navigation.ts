@@ -23,12 +23,23 @@ function blockedNavigation(url: string, target: string): CuyError {
   return new CuyError("BLOCKED_BY_POLICY", `La política bloqueó la navegación iniciada en ${url} hacia ${target}.`);
 }
 
-export async function navigateTab(tab: Tab, url: string, waitUntil: WaitUntil, policy: Policy) {
+/** Una navegación que la página empezó antes, por ejemplo al enviar un formulario, puede llegar tarde y pisar esta. */
+async function gotoOnceMore(tab: Tab, url: string, waitUntil: WaitUntil, warnings: string[]) {
+  try {
+    return await tab.page.goto(url, { waitUntil, timeout: 30_000 });
+  } catch (err) {
+    if (!(err instanceof Error) || !/interrupted by another navigation/i.test(err.message)) throw err;
+    warnings.push("Una navegación que la página ya había empezado interrumpió la carga; se repitió.");
+    return tab.page.goto(url, { waitUntil, timeout: 30_000 });
+  }
+}
+
+export async function navigateTab(tab: Tab, url: string, waitUntil: WaitUntil, policy: Policy, warnings: string[] = []) {
   validateUrl(url, policy);
   await tab.cancelledNavigation;
   tab.blockedUrl = null;
   try {
-    const response = await tab.page.goto(url, { waitUntil, timeout: 30_000 });
+    const response = await gotoOnceMore(tab, url, waitUntil, warnings);
     await tab.cancelledNavigation;
     if (tab.blockedUrl) throw blockedNavigation(url, tab.blockedUrl);
     return {

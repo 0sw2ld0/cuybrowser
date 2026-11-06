@@ -2,26 +2,26 @@
 
 Control de Chrome para agentes de IA, con un único núcleo y varias interfaces. La especificación completa está en [ESPEC-cuybrowser.md](ESPEC-cuybrowser.md).
 
-> **Estado: versión 0.1.0, de prueba. No está en npm.** Antes de enviar formularios, comprar, subir o descargar archivos, o ejecutar JavaScript, CuyBrowser pide tu aprobación en un diálogo del sistema. Esa detección es una heurística: un botón de una aplicación web que no pertenezca a un formulario ni parezca una compra se pulsa sin preguntar, así que supervisa al agente en cuentas importantes. Solo se ha probado en macOS; Linux y Windows están implementados pero sin probar.
+> **Estado: versión 0.2.0, de prueba. No está en npm.** Antes de enviar formularios, comprar, subir o descargar archivos, o ejecutar JavaScript, CuyBrowser pide tu aprobación en un diálogo del sistema. Esa detección es una heurística: un botón de una aplicación web que no pertenezca a un formulario ni parezca una compra se pulsa sin preguntar, así que supervisa al agente en cuentas importantes. El uso real solo se ha probado en macOS. En Linux y Windows se ejecutan las pruebas automáticas, que usan un aprobador simulado en lugar del diálogo del sistema.
 
 ## Requisitos
 
 - Node.js 20 o superior
 - Google Chrome instalado. No hace falta ninguna extensión: CuyBrowser lo abre con un perfil propio, separado del tuyo
-- macOS. Linux necesita `zenity` o `kdialog` para aprobar acciones. Linux y Windows están implementados, pero sin probar
+- macOS. Linux necesita `zenity` o `kdialog` para aprobar acciones. En Linux y Windows solo se ejecutan las pruebas automáticas; el uso real no se ha probado
 
 ## Instalación
 
 **Con Node.js 20 o superior:**
 
 ```bash
-npm install -g https://github.com/0sw2ld0/cuybrowser/releases/download/v0.1.0/cuybrowser-0.1.0.tgz
+npm install -g https://github.com/0sw2ld0/cuybrowser/releases/download/v0.2.0/cuybrowser-0.2.0.tgz
 ```
 
 **Sin Node.js**, con el binario de tu plataforma, publicado en [Releases](https://github.com/0sw2ld0/cuybrowser/releases). Por ejemplo, en un Mac con Apple Silicon:
 
 ```bash
-curl -fLo cuybrowser https://github.com/0sw2ld0/cuybrowser/releases/download/v0.1.0/cuybrowser-macos-arm64 && chmod +x cuybrowser
+curl -fLo cuybrowser https://github.com/0sw2ld0/cuybrowser/releases/download/v0.2.0/cuybrowser-macos-arm64 && chmod +x cuybrowser
 ```
 
 Usa `cuybrowser-macos-x64`, `cuybrowser-linux-x64`, `cuybrowser-linux-arm64` o `cuybrowser-windows-x64.exe` según tu equipo, y ejecútalo como `./cuybrowser`. Las sumas de comprobación están en `SHA256SUMS`.
@@ -186,6 +186,33 @@ El agente no puede escribir contraseñas. Inicia Chrome con ventana, entra a tu 
 cuybrowser start --profile trabajo
 ```
 
+## Conectar con un Chrome ya abierto
+
+Con el modo `attach`, CuyBrowser controla un Chrome que abriste tú, en lugar de abrir el suyo. El agente verá todas las pestañas y sesiones de ese Chrome, así que está deshabilitado por defecto. Para habilitarlo, añade esto a `~/.cuybrowser/policy.yaml`:
+
+```yaml
+attach:
+  enabled: true
+```
+
+Abre Chrome con el puerto de depuración. Desde la versión 136, Chrome ignora ese puerto en tu perfil habitual, así que necesita una carpeta de datos propia. En macOS:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222 --user-data-dir="$HOME/.chrome-attach"
+```
+
+Conecta CuyBrowser. Sin `--cdp`, usa `http://127.0.0.1:9222`:
+
+```bash
+cuybrowser start --mode attach
+```
+
+- El agente trabaja en una pestaña nueva y puede elegir otra con `tab_select`.
+- `cuybrowser stop` solo se desconecta: Chrome sigue abierto con sus pestañas.
+- Mientras está conectado, las reglas de dominios afectan a todas las pestañas, también a las que uses tú. Lo mismo pasa con las descargas: todas quedan en cuarentena hasta que las apruebas.
+- No se ha comprobado que Chrome vuelva a guardar las descargas como siempre después de desconectar. Si no lo hace, reinícialo.
+- Solo se admite un Chrome de este equipo. El puerto de depuración permite controlar ese Chrome a cualquier programa de tu equipo, así que cierra Chrome cuando termines.
+
 ## Compilar el binario
 
 Necesitas Git y Node.js 20 o superior. Para usar el binario, también Google Chrome.
@@ -289,6 +316,26 @@ npm test
 ```
 
 Las pruebas E2E abren Chrome sin ventana contra fixtures locales y usan un directorio temporal, sin tocar `~/.cuybrowser`.
+
+La CI de GitHub Actions ejecuta las pruebas en macOS, Linux y Windows en cada pull request y en cada push a `main`.
+
+### Publicar una versión
+
+Cambia la versión en `package.json` y `package-lock.json`:
+
+```bash
+npm version 0.2.0 --no-git-tag-version
+```
+
+Pon la misma en `src/core/version.ts`, porque una prueba comprueba que coinciden. Actualiza también las URLs de instalación de este README y haz commit.
+
+Crea el tag y súbelo:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+El workflow `Release` comprueba que el tag coincide con la versión, ejecuta las pruebas y compila los binarios y el paquete `.tgz` con su `SHA256SUMS`. Después crea un borrador de release en GitHub: revísalo y publícalo desde allí.
 
 ## Licencia
 
