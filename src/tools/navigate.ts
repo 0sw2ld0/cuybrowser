@@ -14,5 +14,6 @@ export default defineTool({
   }),
   risk: "action",
   cli: { positional: ["url"] },
-  handler: ({ session, policy }, { url, wait_until }) => navigateTab(session.activeTab(), url, wait_until, policy),
+  handler: ({ session, policy, warnings }, { url, wait_until }) =>
+    navigateTab(session.activeTab(), url, wait_until, policy, warnings),
 });

@@ -33,6 +33,10 @@ export class Tab {
     return this.session;
   }
 
+  isMainFrame(frameId: string): boolean {
+    return frameId === this.mainFrameId;
+  }
+
   onDialog(listener: (dialog: Dialog) => void): () => void {
     this.dialogListeners.add(listener);
     return () => this.dialogListeners.delete(listener);

@@ -211,6 +211,17 @@ describe("CLI contra Chrome real", () => {
     expect(samples[7]).toBeLessThan(300);
   }, 30_000);
 
+  it("informa de la navegación aunque su petición salga tarde, y navigate no choca con ella", async () => {
+    await cli("navigate", `${base}/lenta`);
+    const clicked = await json("click", await refOf('button "Continuar"'));
+    expect(clicked.ok, JSON.stringify(clicked)).toBe(true);
+    expect(clicked.data.navigated).toBe(true);
+    expect(clicked.data.url).toContain("/welcome");
+    const next = await json("navigate", `${base}/login`);
+    expect(next.ok, JSON.stringify(next)).toBe(true);
+    expect(next.data.url).toContain("/login");
+  }, 30_000);
+
   it("arranca un solo daemon y lo detiene con su socket", async () => {
     const results = await Promise.all([cli("daemon", "status"), cli("status")]);
     expect(results[0].stdout).toContain("en marcha");

@@ -162,6 +162,12 @@ export async function resolveElement(tab: Tab, ref: string): Promise<ResolvedEle
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Cuánto se espera a que salga la petición de una navegación que la página ya pidió. Entre una cosa y la otra
+ * corren el beforeunload de la página y el trabajo del navegador, que en un equipo cargado pasa de 100 ms.
+ */
+const REQUESTED_NAVIGATION_GRACE_MS = 2_000;
+
 /** Ejecuta una acción e informa de si provocó una navegación o abrió pestañas. */
 export async function watchNavigation(
   tab: Tab,
@@ -174,6 +180,22 @@ export async function watchNavigation(
   let requested = false;
   let settled = false;
   let committed = false;
+  /** Chrome avisa en cuanto la página pide navegar, antes de que salga la petición de red. */
+  let pendingSince: number | null = null;
+  let sameDocument = false;
+  const cdp = await tab.cdp();
+  const onRequestedNavigation = (event: { frameId: string; disposition: string }) => {
+    if (event.disposition === "currentTab" && tab.isMainFrame(event.frameId)) pendingSince ??= Date.now();
+  };
+  const onSameDocument = (event: { frameId: string }) => {
+    if (tab.isMainFrame(event.frameId)) sameDocument = true;
+  };
+  const waiting = (): boolean => {
+    if (committed || sameDocument) return false;
+    if (requested) return true;
+    // Pedida pero sin petición todavía. Si no sale en el margen, la página la canceló.
+    return pendingSince !== null && Date.now() - pendingSince < REQUESTED_NAVIGATION_GRACE_MS;
+  };
   const isMainNavigation = (request: { isNavigationRequest(): boolean; frame(): unknown }) =>
     request.isNavigationRequest() && request.frame() === page.mainFrame();
   const onRequest = (request: Parameters<typeof isMainNavigation>[0]) => {
@@ -190,13 +212,15 @@ export async function watchNavigation(
   page.on("requestfinished", onSettled);
   page.on("requestfailed", onSettled);
   page.on("framenavigated", onFrame);
+  cdp.on("Page.frameRequestedNavigation", onRequestedNavigation);
+  cdp.on("Page.navigatedWithinDocument", onSameDocument);
   tab.blockedUrl = null;
   try {
     await action();
     await sleep(100);
     const deadline = Date.now() + 10_000;
     let settledAt: number | null = null;
-    while (requested && !committed && Date.now() < deadline) {
+    while (waiting() && Date.now() < deadline) {
       if (settled) {
         settledAt ??= Date.now();
         if (Date.now() - settledAt > 100) break;
@@ -220,6 +244,8 @@ export async function watchNavigation(
     page.off("requestfinished", onSettled);
     page.off("requestfailed", onSettled);
     page.off("framenavigated", onFrame);
+    cdp.off("Page.frameRequestedNavigation", onRequestedNavigation);
+    cdp.off("Page.navigatedWithinDocument", onSameDocument);
   }
   return {
     navigated: committed,
