@@ -1,12 +1,12 @@
 # Especificación de construcción: CuyBrowser
 
-> Herramienta para que agentes de IA controlen Chrome, utilizable **vía MCP** y **sin MCP** (CLI y HTTP local), con un único núcleo compartido.
+> Herramienta para que agentes de IA controlen Chrome u otro navegador de su mismo motor, utilizable **vía MCP** y **sin MCP** (CLI y HTTP local), con un único núcleo compartido.
 
 ---
 
 ## 1. Objetivo
 
-Construir una herramienta que permita a cualquier agente de IA navegar, leer e interactuar con páginas web en Chrome, con tres interfaces de acceso equivalentes:
+Construir una herramienta que permita a cualquier agente de IA navegar, leer e interactuar con páginas web en Chrome u otro navegador de su mismo motor, con tres interfaces de acceso equivalentes:
 
 | Interfaz | Para quién |
 |---|---|
@@ -26,7 +26,8 @@ Construir una herramienta que permita a cualquier agente de IA navegar, leer e i
 ## 2. Stack técnico (v1)
 
 - **Lenguaje:** TypeScript sobre Node.js ≥ 20.
-- **Control del navegador:** `playwright-core` (sin descargar navegadores; usa el Chrome instalado vía `channel: "chrome"`) más sesiones CDP directas donde haga falta (árbol de accesibilidad, `backendNodeId`).
+- **Control del navegador:** `playwright-core` más sesiones CDP directas donde haga falta (árbol de accesibilidad, `backendNodeId`).
+- **Navegador:** usa uno ya instalado, sin descargar nada por su cuenta. Los busca por su ruta habitual y los lanza con `executablePath`, en este orden: Google Chrome, Microsoft Edge, Brave, Chromium y Arc (solo en macOS), y por último el Chromium de Playwright si la persona lo descargó con `cuybrowser install-browser` (§3.2).
 - **Esquemas:** `zod` como fuente única de verdad para parámetros y respuestas.
 - **MCP:** SDK oficial `@modelcontextprotocol/sdk`, transporte stdio.
 - **CLI:** `commander` o equivalente ligero.
@@ -52,16 +53,23 @@ Construir una herramienta que permita a cualquier agente de IA navegar, leer e i
 ```
 
 ### 3.1 Daemon
-- Proceso de larga duración que mantiene **una conexión persistente** con Chrome.
+- Proceso de larga duración que mantiene **una conexión persistente** con el navegador.
 - IPC con los clientes: socket Unix (`~/.cuybrowser/daemon.sock`) en macOS/Linux y named pipe en Windows.
 - **Autoarranque:** si el CLI o el servidor MCP no encuentran el daemon, lo inician automáticamente.
 - Se apaga tras N minutos de inactividad (configurable, por defecto 30).
 - Mantiene el estado entre comandos: pestaña activa, mapa de refs del último snapshot y buffers de eventos.
 
 ### 3.2 Modos de navegador
-1. **`launch`** (por defecto): abre Chrome con un perfil aislado en `~/.cuybrowser/profiles/<nombre>` mediante `launchPersistentContext`. Las sesiones iniciadas manualmente por el usuario persisten en ese perfil.
+1. **`launch`** (por defecto): abre un navegador con un perfil aislado mediante `launchPersistentContext`, con `chromiumSandbox: true` y las descargas retenidas en cuarentena. Las sesiones iniciadas manualmente por el usuario persisten en ese perfil. Cada navegador tiene el suyo, porque un perfil abierto por otra versión de Chromium puede estropearse: el de Chrome está en `~/.cuybrowser/profiles/<nombre>`, como antes de admitir otros navegadores, y el de los demás en `~/.cuybrowser/profiles/<nombre>.<navegador>`.
 2. **`attach`**: se conecta a un Chrome ya lanzado con `--remote-debugging-port` mediante `connectOverCDP(url)`. Está deshabilitado salvo que la política tenga `attach.enabled: true`, solo admite URLs de este equipo (`127.0.0.1`, `localhost` o `[::1]`), trabaja en una pestaña nueva para no tocar la que usa la persona y `stop` solo se desconecta.
 3. *(Fuera de v1)* **`extension`**: control del Chrome real del usuario a través de una extensión. Dejar la interfaz `BrowserDriver` preparada para añadirlo.
+
+**Elección del navegador en `launch`:**
+- Sin elegir, se prueban en orden los instalados: Google Chrome, Microsoft Edge, Brave, Chromium, Arc y el Chromium de Playwright. Si uno no se abre, se pasa al siguiente y se añade un aviso a `warnings`.
+- `start` acepta `browser`: `chrome`, `msedge`, `brave`, `chromium`, `arc` o la ruta absoluta de un ejecutable (en macOS también la carpeta `.app`). Con él solo se prueba ese navegador; `chromium` abarca el del sistema y, después, el de Playwright.
+- La variable `CUYBROWSER_BROWSER` tiene el mismo efecto que `browser`. La lee el cliente que llama a `start` y no el daemon, que pudo arrancar antes con otro entorno.
+- `start` y `status` devuelven `browser` (nombre) y `browser_path` (ejecutable). `cuybrowser browsers` lista los encontrados y marca el que se usará.
+- Sin ninguno, `start` devuelve `NO_BROWSER` con la pista de `cuybrowser install-browser`. Esa orden descarga una sola vez el Chromium de Playwright (unos 190 MB) en `~/.cuybrowser/browsers/`, o en `PLAYWRIGHT_BROWSERS_PATH` si está definida, y pide confirmación salvo con `--yes`. No es una herramienta MCP ni HTTP: nada se descarga sin que la persona lo pida.
 
 Toda la interacción con el navegador pasa por una interfaz `BrowserDriver`, para poder añadir modos sin tocar las herramientas.
 
@@ -106,9 +114,9 @@ A partir del registro se generan automáticamente:
 ### Sesión y pestañas
 | Herramienta | Parámetros | Devuelve |
 |---|---|---|
-| `start` | `mode?`, `profile?`, `cdp_url?`, `headless?` | estado |
+| `start` | `mode?`, `profile?`, `cdp_url?`, `browser?`, `headless?` | estado |
 | `stop` | — | ok |
-| `status` | — | modo, perfil, pestañas, pestaña activa |
+| `status` | — | modo, navegador, perfil, pestañas, pestaña activa |
 | `tabs_list` | — | `[{id, title, url, active}]` |
 | `tab_new` | `url?` | `{id}` |
 | `tab_select` | `id` | ok |
@@ -245,7 +253,7 @@ audit:
 
 ### 6.4 Otros requisitos
 - La API HTTP solo escucha en `127.0.0.1`, exige el token `~/.cuybrowser/token` (lo genera el daemon en su primer arranque si no existe, con permisos 600; si el archivo tiene permisos más abiertos, la API HTTP no arranca y lo indica) y rechaza peticiones con `Origin` de navegador (protección contra ataques desde páginas web).
-- En el modo `launch` nunca se usa el perfil personal de Chrome.
+- En el modo `launch` nunca se usa el perfil personal del navegador, y `upload_file` rechaza los archivos de los perfiles personales de Chrome, Edge, Brave, Chromium y Arc.
 - El log de auditoría registra cada acción con marca de tiempo, herramienta, parámetros (sin guardar el texto escrito con `type` ni el de `handle_dialog`), URL y resultado.
 
 ---
@@ -344,7 +352,7 @@ cuybrowser/
 - **Tarea de agente de punta a punta:** un script que, usando solo el CLI, completa un formulario de 3 pasos en los fixtures.
 
 ### 9.2 Criterios de aceptación de v1
-- [ ] `npx cuybrowser start && npx cuybrowser navigate <url> && npx cuybrowser snapshot` funciona en macOS con Chrome instalado.
+- [ ] `npx cuybrowser start && npx cuybrowser navigate <url> && npx cuybrowser snapshot` funciona en macOS con Chrome instalado, y también sin Chrome con otro navegador compatible o con el Chromium de `install-browser`.
 - [ ] Claude Desktop y Claude Code pueden usar todas las herramientas vía MCP con la configuración del README.
 - [ ] Un agente sin MCP, usando solo el `AGENTS.md` generado, completa la tarea E2E de formulario.
 - [ ] Todas las pruebas de paridad y de seguridad pasan.

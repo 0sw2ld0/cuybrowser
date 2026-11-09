@@ -109,7 +109,7 @@ function addTool(program: Command, tool: AnyTool): void {
 }
 
 const program = new Command("cuybrowser")
-  .description("Control de Chrome para agentes de IA.")
+  .description("Control de un navegador del motor de Chrome para agentes de IA.")
   .version(VERSION);
 
 for (const tool of tools) addTool(program, tool);
@@ -144,6 +144,41 @@ program
   .addOption(new Option("--format <formato>", "Formato.").choices([...DOC_FORMATS]).default("agents-md"))
   .action((options: { format: DocFormat }) => {
     process.stdout.write(generateDocs(tools, options.format));
+  });
+
+program
+  .command("browsers")
+  .description("Lista los navegadores compatibles instalados, en el orden en que se prueban.")
+  .action(async () => {
+    const { realSystem, resolveBrowsers, detectBrowsers } = await import("../core/driver/browsers.js");
+    const system = await realSystem();
+    const found = detectBrowsers(system);
+    const choice = process.env.CUYBROWSER_BROWSER?.trim();
+    let chosen: string | null = null;
+    try {
+      chosen = resolveBrowsers(choice, system)[0]?.executablePath ?? null;
+    } catch (err) {
+      console.error(`${err instanceof Error ? err.message : String(err)}`);
+      const hint = (err as { hint?: string }).hint;
+      if (hint) console.error(`Pista: ${hint}`);
+      process.exitCode = 1;
+    }
+    for (const browser of found) {
+      console.log(`${browser.executablePath === chosen ? "*" : " "} ${browser.name}: ${browser.executablePath}`);
+    }
+    if (chosen && !found.some((browser) => browser.executablePath === chosen)) console.log(`* ${chosen}`);
+    if (choice) console.log(`CUYBROWSER_BROWSER=${choice}`);
+  });
+
+program
+  .command("install-browser")
+  .description(
+    "Descarga una sola vez el Chromium de Playwright para un equipo sin ningún navegador compatible. Lo ejecuta la persona usuaria.",
+  )
+  .option("--yes", "No pide confirmación antes de descargar.")
+  .action(async (options: { yes?: boolean }) => {
+    const { installBrowser } = await import("../core/driver/install.js");
+    process.exitCode = await installBrowser({ yes: options.yes === true });
   });
 
 // Lo usa el binario compilado para lanzarse a sí mismo como daemon.
@@ -183,9 +218,11 @@ daemon
   });
 daemon
   .command("stop")
-  .description("Detiene el daemon y cierra Chrome.")
+  .description("Detiene el daemon y cierra el navegador.")
   .action(async () => {
     console.log((await stopDaemon()) ? "detenido" : "no estaba en marcha");
   });
 
-await program.parseAsync();
+const { isDownloadChild, runDownloadChild } = await import("../core/driver/install.js");
+if (isDownloadChild()) await runDownloadChild();
+else await program.parseAsync();

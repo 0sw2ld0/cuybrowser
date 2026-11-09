@@ -1,13 +1,13 @@
 # CuyBrowser
 
-Control de Chrome para agentes de IA, con un único núcleo y varias interfaces. La especificación completa está en [ESPEC-cuybrowser.md](ESPEC-cuybrowser.md).
+Control de un navegador del motor de Chrome para agentes de IA, con un único núcleo y varias interfaces. La especificación completa está en [ESPEC-cuybrowser.md](ESPEC-cuybrowser.md).
 
-> **Estado: versión 0.2.0, de prueba. No está en npm.** Antes de enviar formularios, comprar, subir o descargar archivos, o ejecutar JavaScript, CuyBrowser pide tu aprobación en un diálogo del sistema. Esa detección es una heurística: un botón de una aplicación web que no pertenezca a un formulario ni parezca una compra se pulsa sin preguntar, así que supervisa al agente en cuentas importantes. El uso real solo se ha probado en macOS. En Linux y Windows se ejecutan las pruebas automáticas, que usan un aprobador simulado en lugar del diálogo del sistema.
+> **Estado: versión 0.3.0, de prueba. No está en npm.** Antes de enviar formularios, comprar, subir o descargar archivos, o ejecutar JavaScript, CuyBrowser pide tu aprobación en un diálogo del sistema. Esa detección es una heurística: un botón de una aplicación web que no pertenezca a un formulario ni parezca una compra se pulsa sin preguntar, así que supervisa al agente en cuentas importantes. El uso real solo se ha probado en macOS. En Linux y Windows se ejecutan las pruebas automáticas, que usan un aprobador simulado en lugar del diálogo del sistema.
 
 ## Requisitos
 
 - Node.js 20 o superior
-- Google Chrome instalado. No hace falta ninguna extensión: CuyBrowser lo abre con un perfil propio, separado del tuyo
+- Un navegador del motor de Chrome: Google Chrome, Microsoft Edge, Brave, Chromium o Arc. Si no tienes ninguno, CuyBrowser puede descargar su propio Chromium una sola vez, cuando tú se lo pidas ([más abajo](#navegador)). No hace falta ninguna extensión: lo abre con un perfil propio, separado del tuyo
 - macOS. Linux necesita `zenity` o `kdialog` para aprobar acciones. En Linux y Windows solo se ejecutan las pruebas automáticas; el uso real no se ha probado
 
 ## Instalación
@@ -15,13 +15,13 @@ Control de Chrome para agentes de IA, con un único núcleo y varias interfaces.
 **Con Node.js 20 o superior:**
 
 ```bash
-npm install -g https://github.com/0sw2ld0/cuybrowser/releases/download/v0.2.0/cuybrowser-0.2.0.tgz
+npm install -g https://github.com/0sw2ld0/cuybrowser/releases/download/v0.3.0/cuybrowser-0.3.0.tgz
 ```
 
 **Sin Node.js**, con el binario de tu plataforma, publicado en [Releases](https://github.com/0sw2ld0/cuybrowser/releases). Por ejemplo, en un Mac con Apple Silicon:
 
 ```bash
-curl -fLo cuybrowser https://github.com/0sw2ld0/cuybrowser/releases/download/v0.2.0/cuybrowser-macos-arm64 && chmod +x cuybrowser
+curl -fLo cuybrowser https://github.com/0sw2ld0/cuybrowser/releases/download/v0.3.0/cuybrowser-macos-arm64 && chmod +x cuybrowser
 ```
 
 Usa `cuybrowser-macos-x64`, `cuybrowser-linux-x64`, `cuybrowser-linux-arm64` o `cuybrowser-windows-x64.exe` según tu equipo, y ejecútalo como `./cuybrowser`. Las sumas de comprobación están en `SHA256SUMS`.
@@ -73,6 +73,38 @@ El daemon arranca solo y se detiene tras 30 minutos de inactividad. Para detener
 ```bash
 cuybrowser daemon stop
 ```
+
+## Navegador
+
+`cuybrowser start` abre Google Chrome. Si no está instalado, prueba en este orden los que haya: Microsoft Edge, Brave, Chromium, Arc y, por último, el Chromium de Playwright si lo descargaste. Si uno no se abre, pasa al siguiente y lo avisa. La respuesta de `start` y la de `status` dicen cuál se usa en `browser` y dónde está en `browser_path`.
+
+Cada navegador tiene su propio perfil aislado en `~/.cuybrowser/profiles/`. El de Chrome sigue en la misma carpeta que en las versiones anteriores, así que conserva tus sesiones. Los demás llevan el nombre del navegador detrás, como `default.msedge`. Nunca se usa tu perfil personal.
+
+Para ver qué navegadores encuentra y cuál usará, marcado con `*`:
+
+```bash
+cuybrowser browsers
+```
+
+Para fijar uno, usa `--browser` con `chrome`, `msedge`, `brave`, `chromium`, `arc` o la ruta del ejecutable. Así solo se prueba ese; `chromium` abarca el del sistema y, después, el de Playwright:
+
+```bash
+cuybrowser start --browser brave
+```
+
+```bash
+cuybrowser start --browser "/Applications/Vivaldi.app"
+```
+
+También puedes fijarlo con la variable `CUYBROWSER_BROWSER`, por ejemplo en la configuración MCP de tu agente. `--browser` tiene preferencia.
+
+**Sin ningún navegador compatible**, `start` responde `NO_BROWSER` y explica qué hacer. CuyBrowser nunca descarga nada por su cuenta. Para descargar una sola vez el Chromium de Playwright, unos 190 MB de descarga y 370 MB en disco, ejecuta:
+
+```bash
+cuybrowser install-browser
+```
+
+Te pide confirmación; con `--yes` no la pide. Se guarda en `~/.cuybrowser/browsers/`, o en `PLAYWRIGHT_BROWSERS_PATH` si la tienes definida. En Linux puede necesitar además las bibliotecas del sistema que lista `npx playwright install-deps chromium`.
 
 ## MCP
 
@@ -161,7 +193,7 @@ Abre el chat de Copilot en modo agente, escribe `/`, elige `cuybrowser` y añade
 
 Copilot ejecutará comandos como `cuybrowser navigate` en la terminal, y VS Code puede pedirte permiso para cada uno. Revisa que sean comandos de `cuybrowser` y no las herramientas de navegador integradas de VS Code.
 
-Si se abre el navegador integrado de VS Code en lugar de Chrome, abre primero un chat nuevo, porque un chat ya abierto puede no haber cargado la skill. Solo si sigue pasando, ejecuta **Preferences: Open User Settings (JSON)** en la paleta de comandos y añade este ajuste. Afecta a todos tus proyectos: para recuperar ese navegador en el chat, bórralo:
+Si se abre el navegador integrado de VS Code en lugar del de CuyBrowser, abre primero un chat nuevo, porque un chat ya abierto puede no haber cargado la skill. Solo si sigue pasando, ejecuta **Preferences: Open User Settings (JSON)** en la paleta de comandos y añade este ajuste. Afecta a todos tus proyectos: para recuperar ese navegador en el chat, bórralo:
 
 ```json
 "workbench.browser.enableChatTools": false
@@ -172,7 +204,7 @@ Si se abre el navegador integrado de VS Code en lugar de Chrome, abre primero un
 La política está en `~/.cuybrowser/policy.yaml`. Se crea en el primer arranque y los cambios se aplican en la siguiente acción. Si el archivo no es válido, se bloquean las acciones hasta corregirlo.
 
 - **Aprobación:** con `CONFIRMATION_REQUIRED` la acción queda retenida y `confirm` te pregunta. El canal por defecto es `native-dialog`. `elicitation` y `cli` son opcionales y dan menos garantía, porque un cliente MCP o un agente con terminal podría responder por ti.
-- **Dominios:** `domains.deny` gana a `domains.allow`, y `*.banco.com` incluye `banco.com` y sus subdominios. Con alguna regla activa, Chrome trabaja sin caché HTTP. Una redirección hacia un dominio prohibido se cancela al detectarla, así que ese servidor puede llegar a recibir la petición.
+- **Dominios:** `domains.deny` gana a `domains.allow`, y `*.banco.com` incluye `banco.com` y sus subdominios. Con alguna regla activa, el navegador trabaja sin caché HTTP. Una redirección hacia un dominio prohibido se cancela al detectarla, así que ese servidor puede llegar a recibir la petición.
 - **Auditoría:** cada acción se registra en `~/.cuybrowser/audit.jsonl`, sin guardar el texto escrito.
 - **Descargas:** quedan en `~/.cuybrowser/quarantine/` hasta aprobarlas y pasan a `~/.cuybrowser/downloads/`.
 
@@ -180,7 +212,7 @@ La política está en `~/.cuybrowser/policy.yaml`. Se crea en el primer arranque
 
 ## Sesiones en sitios con inicio de sesión
 
-El agente no puede escribir contraseñas. Inicia Chrome con ventana, entra a tu cuenta a mano y la sesión queda guardada en el perfil aislado:
+El agente no puede escribir contraseñas. Inicia el navegador con ventana, entra a tu cuenta a mano y la sesión queda guardada en el perfil aislado:
 
 ```bash
 cuybrowser start --profile trabajo
@@ -215,7 +247,7 @@ cuybrowser start --mode attach
 
 ## Compilar el binario
 
-Necesitas Git y Node.js 20 o superior. Para usar el binario, también Google Chrome.
+Necesitas Git y Node.js 20 o superior. Para usar el binario, también un [navegador compatible](#navegador).
 
 ```bash
 git clone https://github.com/0sw2ld0/cuybrowser.git && cd cuybrowser && npm install
@@ -257,7 +289,7 @@ Si tienes abierto un agente como Copilot, ciérralo y vuelve a abrirlo desde una
 
 ### Actualizar
 
-Desde la carpeta que clonaste, detén el proceso en segundo plano. También cierra Chrome:
+Desde la carpeta que clonaste, detén el proceso en segundo plano. También cierra el navegador:
 
 ```bash
 cuybrowser daemon stop
@@ -315,7 +347,7 @@ Con el repositorio clonado e instalado:
 npm test
 ```
 
-Las pruebas E2E abren Chrome sin ventana contra fixtures locales y usan un directorio temporal, sin tocar `~/.cuybrowser`.
+Las pruebas E2E abren el primer navegador compatible, sin ventana, contra fixtures locales y usan un directorio temporal, sin tocar `~/.cuybrowser`.
 
 La CI de GitHub Actions ejecuta las pruebas en macOS, Linux y Windows en cada pull request y en cada push a `main`.
 
@@ -324,7 +356,7 @@ La CI de GitHub Actions ejecuta las pruebas en macOS, Linux y Windows en cada pu
 Cambia la versión en `package.json` y `package-lock.json`:
 
 ```bash
-npm version 0.2.0 --no-git-tag-version
+npm version 0.3.0 --no-git-tag-version
 ```
 
 Pon la misma en `src/core/version.ts`, porque una prueba comprueba que coinciden. Actualiza también las URLs de instalación de este README y haz commit.
@@ -332,7 +364,7 @@ Pon la misma en `src/core/version.ts`, porque una prueba comprueba que coinciden
 Crea el tag y súbelo:
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.3.0 && git push origin v0.3.0
 ```
 
 El workflow `Release` comprueba que el tag coincide con la versión, ejecuta las pruebas y compila los binarios y el paquete `.tgz` con su `SHA256SUMS`. Después crea un borrador de release en GitHub: revísalo y publícalo desde allí.

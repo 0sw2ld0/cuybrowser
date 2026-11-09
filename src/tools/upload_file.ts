@@ -20,6 +20,8 @@ const PROTECTED = [
   ".config/gh",
   ".config/google-chrome",
   ".config/chromium",
+  ".config/microsoft-edge",
+  ".config/BraveSoftware",
   ".local/share/keyrings",
   ".password-store",
   ".netrc",
@@ -28,8 +30,16 @@ const PROTECTED = [
   ".git-credentials",
   "Library/Keychains",
   "Library/Cookies",
+  // Perfiles personales de los navegadores que CuyBrowser puede abrir: guardan cookies y contraseñas.
   "Library/Application Support/Google/Chrome",
+  "Library/Application Support/Microsoft Edge",
+  "Library/Application Support/BraveSoftware",
+  "Library/Application Support/Chromium",
+  "Library/Application Support/Arc",
   "AppData/Local/Google/Chrome/User Data",
+  "AppData/Local/Microsoft/Edge/User Data",
+  "AppData/Local/BraveSoftware/Brave-Browser/User Data",
+  "AppData/Local/Chromium/User Data",
 ];
 
 /**

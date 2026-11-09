@@ -189,12 +189,21 @@ describe("CLI contra Chrome real", () => {
     expect((await json("tab_select", "t999")).error.code).toBe("NO_TAB");
   });
 
-  it("valida parámetros y responde NO_BROWSER cuando Chrome está cerrado", async () => {
+  it("valida parámetros y responde NO_BROWSER cuando el navegador está cerrado", async () => {
     expect((await json("click")).error.code).toBe("INVALID_PARAMS");
     expect((await json("stop")).ok).toBe(true);
     expect((await json("snapshot")).error.code).toBe("NO_BROWSER");
     expect((await json("status")).data.running).toBe(false);
-    expect((await json("start", "--headless")).ok).toBe(true);
+    expect((await json("start", "--headless", "--browser", "firefox")).error.code).toBe("INVALID_PARAMS");
+    const missing = await json("start", "--headless", "--browser", join(home, "no-existe", "chrome"));
+    expect(missing.error.code).toBe("NO_BROWSER");
+    expect((await json("status")).data.running).toBe(false);
+    const started = await json("start", "--headless");
+    expect(started.ok, JSON.stringify(started)).toBe(true);
+    // start y status dicen qué navegador se abrió y dónde está.
+    expect(started.data.browser).toEqual(expect.any(String));
+    expect(existsSync(started.data.browser_path)).toBe(true);
+    expect((await json("status")).data.browser_path).toBe(started.data.browser_path);
   }, 30_000);
 
   it("mantiene la latencia mediana de click por debajo de 300 ms", async () => {
