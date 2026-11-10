@@ -1,6 +1,6 @@
 {
   "name": "cuybrowser",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Control de Chrome u otro navegador de su mismo motor para agentes de IA por MCP, CLI y HTTP local, con confirmación humana y snapshots eficientes en tokens.",
   "license": "MIT",
   "type": "module",
