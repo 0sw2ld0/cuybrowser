@@ -1,9 +1,10 @@
 import { mkdirSync } from "node:fs";
-import type { BrowserContext } from "playwright-core";
+import type { BrowserContext, LaunchOptions } from "playwright-core";
 import { CuyError } from "../errors.js";
 import { profileDir } from "../paths.js";
 import { loadPlaywright, realSystem, resolveBrowsers, type BrowserCandidate } from "./browsers.js";
 import type { BrowserDriver, StartOptions } from "./types.js";
+import { prepareRestrictedProfile } from "../security/restricted-profile.js";
 
 /** Primera línea del error de Playwright, que trae después un registro largo. */
 function firstLine(err: unknown): string {
@@ -24,6 +25,8 @@ export class LaunchDriver implements BrowserDriver {
   constructor(
     private readonly options: StartOptions,
     private readonly warnings: string[] = [],
+    private readonly guardOrigins = false,
+    private readonly proxy?: LaunchOptions["proxy"],
   ) {
     this.profile = options.profile;
   }
@@ -35,16 +38,22 @@ export class LaunchDriver implements BrowserDriver {
     for (const browser of candidates) {
       const dir = profileDir(this.options.profile, browser.profileKey);
       mkdirSync(dir, { recursive: true, mode: 0o700 });
+      if (this.guardOrigins) prepareRestrictedProfile(dir);
       try {
         this.context = await chromium.launchPersistentContext(dir, {
           executablePath: browser.executablePath,
           headless: this.options.headless,
           viewport: null,
+          ...(this.proxy ? { proxy: this.proxy } : {}),
+          // WebRTC no debe abrir UDP directo que el proxy HTTP no puede controlar.
+          ...(this.proxy ? { args: ["--webrtc-ip-handling-policy=disable_non_proxied_udp"] } : {}),
           // Sin esto Playwright añade --no-sandbox y Chrome muestra un aviso de
           // marca no admitida; además deja el renderizador sin aislamiento.
           chromiumSandbox: true,
           // Core las retiene en cuarentena hasta que una persona las aprueba.
           acceptDownloads: true,
+          // Los workers no pueden saltarse la barrera de documentos de un perfil restringido.
+          ...(this.guardOrigins ? { serviceWorkers: "block" as const } : {}),
         });
       } catch (err) {
         failures.push(`${browser.name}: ${firstLine(err)}`);

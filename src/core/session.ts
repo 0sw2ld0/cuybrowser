@@ -5,10 +5,13 @@ import type { BrowserDriver, StartOptions } from "./driver/types.js";
 import { CuyError } from "./errors.js";
 import { EventBuffer } from "./events.js";
 import { hasDomainRules, isUrlAllowed, type Policy } from "./security/policy.js";
+import { LocalNetworkProxy } from "./security/local-proxy.js";
+import { OriginGuard } from "./security/origin-guard.js";
 import { RefTable } from "./snapshot/refs.js";
 import type { FlatLine } from "./snapshot/render.js";
 
 export class Tab {
+  originReady: Promise<void> = Promise.resolve();
   readonly refs = new RefTable();
   dialog: Dialog | null = null;
   blockedUrl: string | null = null;
@@ -143,6 +146,10 @@ export class Session {
   private tabCounter = 0;
   private policy: Policy | null = null;
   private routed = false;
+  private originGuard: OriginGuard | null = null;
+  private localProxy: LocalNetworkProxy | null = null;
+  private readonly consumedVisits = new Set<string>();
+  private readonly activeVisits = new Map<Page, { id: string; origin: string }>();
   private headless = false;
   private handoffAbort: AbortController | null = null;
 
@@ -170,9 +177,20 @@ export class Session {
 
   private readonly guardNavigation = async (route: Route): Promise<void> => {
     const request = route.request();
-    if (request.isNavigationRequest() && this.policy && !isUrlAllowed(this.policy, request.url())) {
+    let page: Page | undefined;
+    let crossFrame = false;
+    try {
+      const frame = request.frame();
+      page = frame.page();
+      const parent = frame.parentFrame();
+      crossFrame = parent !== null && new URL(parent.url()).origin !== new URL(request.url()).origin;
+    } catch { /* Los workers no tienen frame: no reciben excepciones por el origen de la página. */ }
+    const unprotected = this.originGuard && request.isNavigationRequest()
+      && (!page || !this.originGuard.isReady(page) || crossFrame);
+    if (unprotected || (request.isNavigationRequest() && this.policy
+      && !isUrlAllowed(this.effectivePolicy(), request.url()))) {
       // "aborted" deja la página donde estaba; "blockedbyclient" la cambiaría por una página de error.
-      const tab = [...this.tabs.values()].find((candidate) => candidate.page === request.frame().page());
+      const tab = [...this.tabs.values()].find((candidate) => candidate.page === page);
       if (tab) tab.blockedUrl = request.url();
       await route.abort("aborted");
     } else {
@@ -186,8 +204,13 @@ export class Session {
 
   /** Solo intercepta si hay reglas, porque interceptar desactiva la caché HTTP de Chrome. */
   async applyDomainRules(policy: Policy): Promise<void> {
+    if (this.context && !this.originGuard && (policy.origins || policy.local_network)) {
+      await this.stop();
+      throw new CuyError("BLOCKED_BY_POLICY", "La nueva barrera necesita reiniciar el navegador con la política activa.");
+    }
     this.policy = policy;
     if (!this.context) return;
+    for (const tab of this.tabs.values()) this.visitNavigation(tab.page, tab.page.url());
     const wanted = hasDomainRules(policy);
     if (wanted && !this.routed) {
       await this.context.route("**/*", this.guardNavigation);
@@ -201,21 +224,40 @@ export class Session {
   /** warnings recibe los avisos del arranque, como haber usado otro navegador porque el primero falló. */
   async start(options: StartOptions, warnings: string[] = []): Promise<boolean> {
     if (this.running) return false;
+    const protectedMode = this.policy?.origins !== undefined || this.policy?.local_network !== undefined;
+    if (protectedMode && options.mode === "attach") {
+      throw new CuyError("BLOCKED_BY_POLICY", "La barrera por origen requiere launch con un perfil propio, no attach.");
+    }
+    if (this.policy?.local_network) this.localProxy = new LocalNetworkProxy(() => this.policy!);
+    const proxy = await this.localProxy?.start();
     const driver =
       options.mode === "attach"
         ? new AttachDriver(options.cdp_url ?? DEFAULT_CDP_URL)
-        : new LaunchDriver(options, warnings);
-    const context = await driver.start();
+        : new LaunchDriver(options, warnings, protectedMode, proxy);
     this.driver = driver;
+    let context: BrowserContext;
+    try { context = await driver.start(); } catch (error) { await this.stop(); throw error; }
     this.context = context;
     this.headless = options.mode === "launch" && options.headless;
     this.routed = false;
-    if (this.policy) await this.applyDomainRules(this.policy);
+    if (protectedMode) {
+      this.originGuard = new OriginGuard(context, () => this.effectivePolicy(), (page, url) => {
+        const tab = [...this.tabs.values()].find((candidate) => candidate.page === page);
+        if (tab) tab.blockedUrl = url;
+      }, (page, url) => this.visitNavigation(page, url));
+    }
     context.on("page", (page) => this.register(page));
     context.on("close", () => {
       if (this.context === context) this.reset();
     });
     for (const page of context.pages()) this.register(page);
+    try {
+      if (this.policy) await this.applyDomainRules(this.policy);
+      await Promise.all([...this.tabs.values()].map((tab) => tab.originReady));
+    } catch (error) {
+      await this.stop();
+      throw new CuyError("BLOCKED_BY_POLICY", "No se pudo instalar la barrera del navegador: " + String(error));
+    }
     // Las pestañas que ya estaban son de la persona: el agente trabaja en una propia salvo que elija otra.
     if (options.mode === "attach") await this.newTab();
     return true;
@@ -223,11 +265,16 @@ export class Session {
 
   async stop(): Promise<void> {
     const driver = this.driver;
-    this.reset();
-    await driver?.stop();
+    const proxy = this.localProxy;
+    try { await driver?.stop(); } finally { this.reset(); await proxy?.close(); }
   }
 
   private reset(): void {
+    for (const visit of this.activeVisits.values()) this.consumeVisit(visit.id);
+    this.activeVisits.clear();
+    this.originGuard?.close();
+    this.originGuard = null;
+    const proxy = this.localProxy; this.localProxy = null; void proxy?.close();
     this.handoffAbort?.abort();
     this.handoffAbort = null;
     this.headless = false;
@@ -244,9 +291,16 @@ export class Session {
     if (existing) return existing;
     const tab = new Tab(`t${++this.tabCounter}`, page);
     this.tabs.set(tab.id, tab);
+    if (this.originGuard) {
+      tab.originReady = this.originGuard.prepare(page);
+      void tab.originReady.catch(() => page.close().catch(() => {}));
+    }
     this.activeId ??= tab.id;
     this.recordEvents(tab);
     page.on("close", () => {
+      const visit = this.activeVisits.get(page);
+      if (visit) this.consumeVisit(visit.id);
+      this.activeVisits.delete(page);
       if (this.activeId === tab.id) this.handoffAbort?.abort();
       this.tabs.delete(tab.id);
       if (this.activeId === tab.id) {
@@ -261,6 +315,7 @@ export class Session {
     // Playwright no intercepta los saltos de una redirección: se cancela la navegación al detectarlos.
     page.on("request", (request) => {
       if (!request.redirectedFrom() || !request.isNavigationRequest() || !this.policy) return;
+      if (this.originGuard) return; // CDP detiene cada salto antes de enviarlo, no después de observarlo.
       if (isUrlAllowed(this.policy, request.url())) return;
       tab.blockedUrl = request.url();
       tab.cancelledNavigation = request
@@ -306,6 +361,29 @@ export class Session {
       tab.setDialog(dialog);
     });
     page.on("download", (download) => this.onDownload(tab, download));
+  }
+
+  private consumeVisit(id: string): void {
+    if (this.consumedVisits.size < 1000) this.consumedVisits.add(id);
+  }
+
+  private effectivePolicy(): Policy {
+    const policy = this.policy!;
+    const visit = policy.origins?.visit;
+    if (!visit || (!this.consumedVisits.has(visit.id) && this.consumedVisits.size < 1000)) return policy;
+    const { visit: _expired, ...origins } = policy.origins!;
+    return { ...policy, origins };
+  }
+
+  private visitNavigation(page: Page, value: string): void {
+    let origin: string;
+    try { origin = new URL(value).origin; } catch { return; }
+    const active = this.activeVisits.get(page);
+    if (active && active.origin !== origin) {
+      this.consumeVisit(active.id); this.activeVisits.delete(page);
+    }
+    const visit = this.effectivePolicy().origins?.visit;
+    if (visit?.origin === origin) this.activeVisits.set(page, visit);
   }
 
   private requireContext(): BrowserContext {
@@ -354,6 +432,7 @@ export class Session {
     const page = await this.requireContext().newPage();
     if (this.viewport) await page.setViewportSize(this.viewport);
     const tab = this.register(page);
+    await tab.originReady;
     this.activeId = tab.id;
     return tab;
   }
@@ -370,9 +449,10 @@ export class Session {
   }
 
   async status() {
-    if (!this.running || !this.driver) return { running: false, tabs: [] };
+    if (!this.running || !this.driver) return { running: false, tabs: [], consumed_visits: [...this.consumedVisits] };
     return {
       running: true,
+      consumed_visits: [...this.consumedVisits],
       handing_off: this.handingOff,
       mode: this.driver.mode,
       ...(this.driver.browser === null
