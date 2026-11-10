@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -68,6 +68,12 @@ try {
   assert(snapshot.text.includes(marker), "El binario debe leer la página ficticia en Chromium.");
   await tool("stop");
   console.log("Ejecutable autónomo: arranque, navegación, lectura y parada correctos sin node_modules de Playwright.");
+} catch (error) {
+  const daemonLog = join(cuyHome, "daemon.log");
+  if (existsSync(daemonLog)) {
+    console.error(`Log del daemon de prueba:\n${readFileSync(daemonLog, "utf8").slice(-8192)}`);
+  }
+  throw error;
 } finally {
   try {
     // El hogar fue creado vacío y es exclusivo. Estas dos operaciones IPC no arrancan un daemon.
