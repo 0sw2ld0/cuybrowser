@@ -37,6 +37,9 @@ jobs:
       - name: Compilar los binarios
         run: npm run build:bin
 
+      - name: Probar Chromium con el binario compilado
+        run: node scripts/smoke-binary.mjs release/cuybrowser-macos-arm64
+
       - name: Empaquetar para npm
         run: |
           npm pack --pack-destination release

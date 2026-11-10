@@ -54,3 +54,14 @@ jobs:
       - run: npm test
         env:
           CI: "true"
+
+      - name: Probar el ejecutable autónomo en Chromium
+        if: matrix.node == 22
+        shell: bash
+        run: |
+          npm run build:bin -- --current
+          if [[ "$RUNNER_OS" == 'Windows' ]]; then
+            node scripts/smoke-binary.mjs release/cuybrowser.exe
+          else
+            node scripts/smoke-binary.mjs release/cuybrowser
+          fi
