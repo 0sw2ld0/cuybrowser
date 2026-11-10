@@ -10,6 +10,8 @@ export default defineConfig({
     // Muchas pruebas lanzan el CLI varias veces, cada vez como un proceso de Node nuevo. En el runner de
     // macOS eso pasa de los 5 s que vitest da por defecto, aunque en local tarden menos de 2 s.
     testTimeout: 30_000,
+    // Cerrar un Chromium real puede superar 10 s en un Mac con otras compilaciones en marcha.
+    hookTimeout: 60_000,
     include: ["test/**/*.test.ts"],
   },
 });
