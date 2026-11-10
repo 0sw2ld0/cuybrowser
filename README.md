@@ -204,11 +204,55 @@ Si se abre el navegador integrado de VS Code en lugar del de CuyBrowser, abre pr
 La política está en `~/.cuybrowser/policy.yaml`. Se crea en el primer arranque y los cambios se aplican en la siguiente acción. Si el archivo no es válido, se bloquean las acciones hasta corregirlo.
 
 - **Aprobación:** con `CONFIRMATION_REQUIRED` la acción queda retenida y `confirm` te pregunta. El canal por defecto es `native-dialog`. `elicitation` y `cli` son opcionales y dan menos garantía, porque un cliente MCP o un agente con terminal podría responder por ti.
-- **Dominios:** `domains.deny` gana a `domains.allow`, y `*.banco.com` incluye `banco.com` y sus subdominios. Con alguna regla activa, el navegador trabaja sin caché HTTP. Una redirección hacia un dominio prohibido se cancela al detectarla, así que ese servidor puede llegar a recibir la petición.
+- **Dominios:** `domains.deny` gana a `domains.allow`, y `*.banco.com` incluye `banco.com` y sus subdominios. Con alguna regla activa, el navegador trabaja sin caché HTTP. Con la política tradicional de dominios, una redirección prohibida se cancela al detectarla y ese servidor puede llegar a recibir la petición. Para detenerla antes del contacto, usa la política por origen de abajo.
 - **Auditoría:** cada acción se registra en `~/.cuybrowser/audit.jsonl`, sin guardar el texto escrito.
 - **Descargas:** quedan en `~/.cuybrowser/quarantine/` hasta aprobarlas y pasan a `~/.cuybrowser/downloads/`.
 
 **Límites conocidos:** un agente con acceso libre a tus archivos puede editar `policy.yaml`, así que para ese caso hay que aislarlo a nivel de sistema operativo. El aviso de prompt injection es orientativo y no detecta todos los ataques.
+
+### Orígenes exactos y red local
+
+Los clientes que necesitan separar esquema, dominio y puerto pueden añadir estas secciones opcionales:
+
+```yaml
+origins:
+  allow: ["https://example.com", "http://127.0.0.1:8000"]
+  deny: []
+local_network:
+  allow_origins: ["http://127.0.0.1:8000"]
+```
+
+Un origen no admite rutas, credenciales ni comodines. `https://example.com`,
+`http://example.com` y `https://example.com:8443` son permisos distintos.
+`origins.deny` gana; las reglas de `domains` también se siguen aplicando.
+Si `origins` está presente con `allow: []`, no se autoriza ningún documento HTTP(S).
+Si se omite, se mantiene la compatibilidad con la política anterior.
+
+Esta barrera requiere `launch` con un perfil propio y se instala antes de navegar.
+Cada documento y cada salto HTTP se comprueban antes de contactar con su destino.
+Las ventanas nuevas que aún no tienen la barrera y los marcos de otro origen se
+bloquean de forma conservadora. Se desactivan los service workers y la restauración
+automática de pestañas de ese perfil; se conservan sus cookies. Activarla sobre un
+navegador ya abierto lo detiene y exige volver a iniciarlo. No está disponible en `attach`.
+
+El permiso de sitio no concede acceso a la red local. Si `local_network` está
+presente, un proxy privado autenticado controla HTTP, CONNECT y WebSocket,
+incluidos los workers, fija la IP después de resolver DNS y bloquea destinos
+privados salvo aprobación explícita. No descifra TLS ni instala certificados.
+WebRTC no puede abrir UDP directo fuera de ese proxy en un perfil protegido.
+En HTTP se admite también una petición de una página local aprobada; en CONNECT,
+que no muestra el origen de la página, hace falta aprobar el destino por host y
+puerto. Esta protección cubre esas conexiones, no es un cortafuegos del sistema.
+
+Para una visita temporal, el cliente puede enviar `origins.visit` con un `id`
+único y un `origin` exacto. Caduca al confirmar una navegación a otro origen o al
+cerrar la pestaña; un intento bloqueado no la consume. `status.consumed_visits`
+permite retirar el permiso del archivo de política antes de reiniciar el servicio.
+Los identificadores consumidos no vuelven a autorizar dentro del mismo servicio.
+
+`policy_show.capabilities` anuncia `exactOrigins`, `localNetwork` y `visitLeases`.
+`strictResources` es `false`: esta versión no restringe todos los subrecursos
+públicos al origen de la página. Un cliente que necesite ese modo debe rechazarlo.
 
 ## Sesiones en sitios con inicio de sesión
 

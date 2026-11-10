@@ -11,7 +11,8 @@ export default defineTool({
   handler: async () => {
     try {
       const policy = loadPolicy();
-      return { path: policyPath(), valid: true, audit_path: auditPath(policy), policy };
+      return { path: policyPath(), valid: true, audit_path: auditPath(policy), policy,
+        capabilities: { exactOrigins: true, localNetwork: true, visitLeases: true, strictResources: false } };
     } catch (err) {
       if (err instanceof CuyError) return { path: policyPath(), valid: false, error: err.message };
       throw err;

@@ -9,6 +9,18 @@ import { homeDir } from "../paths.js";
 export const CONFIRM_KINDS = ["submit_forms", "purchases", "file_upload", "downloads", "evaluate"] as const;
 export type ConfirmKind = (typeof CONFIRM_KINDS)[number];
 
+const Origin = z.string().transform((value, ctx) => {
+  try {
+    const url = new URL(value);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password
+      || url.pathname !== "/" || url.search || url.hash || url.port === "0") throw new Error("origin");
+    return url.origin;
+  } catch {
+    ctx.addIssue({ code: "custom", message: "Indica un origen http(s), sin ruta, credenciales ni parámetros." });
+    return z.NEVER;
+  }
+});
+
 const PolicySchema = z.strictObject({
   domains: z
     .strictObject({
@@ -16,6 +28,10 @@ const PolicySchema = z.strictObject({
       deny: z.array(z.string()).default([]),
     })
     .prefault({}),
+  // Ausente conserva la política anterior; presente con allow vacío no autoriza ningún origen.
+  origins: z.strictObject({ allow: z.array(Origin).default([]), deny: z.array(Origin).default([]),
+    visit: z.strictObject({ id: z.string().min(1).max(100), origin: Origin }).optional() }).optional(),
+  local_network: z.strictObject({ allow_origins: z.array(Origin).default([]) }).optional(),
   approval: z.enum(["native-dialog", "elicitation", "cli"]).default("native-dialog"),
   confirm: z.array(z.enum(CONFIRM_KINDS)).default([...CONFIRM_KINDS]),
   sensitive_fields: z.strictObject({ block_typing: z.boolean().default(true) }).prefault({}),
@@ -110,7 +126,8 @@ function matches(host: string, pattern: string): boolean {
 }
 
 export function hasDomainRules(policy: Policy): boolean {
-  return policy.domains.allow.length > 0 || policy.domains.deny.length > 0;
+  return policy.origins !== undefined || policy.local_network !== undefined
+    || policy.domains.allow.length > 0 || policy.domains.deny.length > 0;
 }
 
 export function isUrlAllowed(policy: Policy, url: string): boolean {
@@ -121,6 +138,8 @@ export function isUrlAllowed(policy: Policy, url: string): boolean {
     return false;
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return true;
+  if (policy.origins && (policy.origins.deny.includes(parsed.origin)
+    || (!policy.origins.allow.includes(parsed.origin) && policy.origins.visit?.origin !== parsed.origin))) return false;
   const host = parsed.hostname.toLowerCase();
   if (policy.domains.deny.some((rule) => matches(host, rule))) return false;
   return policy.domains.allow.length === 0 || policy.domains.allow.some((rule) => matches(host, rule));
