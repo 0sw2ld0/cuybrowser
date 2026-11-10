@@ -30,6 +30,7 @@ const server = createServer((_, response) => {
 let moved = false;
 let daemonClosed = false;
 let serverStarted = false;
+let step = "preparación";
 
 try {
   mkdirSync(home, { mode: 0o700 });
@@ -46,14 +47,16 @@ try {
     origins: { allow: [origin] }, local_network: { allow_origins: [origin] },
   }), { mode: 0o600 });
   const env = { ...process.env, HOME: home, CFFIXED_USER_HOME: home, USERPROFILE: home,
-    LOCALAPPDATA: home, APPDATA: home, CUYBROWSER_HOME: cuyHome, PLAYWRIGHT_BROWSERS_PATH: join(temp, "browsers") };
-  for (const key of ["NODE_PATH", "NODE_OPTIONS", "CUYBROWSER_BROWSER"]) delete env[key];
+    LOCALAPPDATA: home, APPDATA: home, CUYBROWSER_HOME: cuyHome, PLAYWRIGHT_BROWSERS_PATH: join(temp, "browsers"),
+    DEBUG: "pw:browser" };
+  for (const key of ["NODE_PATH", "NODE_OPTIONS", "CUYBROWSER_BROWSER", "DEBUG_FILE"]) delete env[key];
   process.env.CUYBROWSER_HOME = cuyHome; // Sólo para el IPC de esta prueba, nunca adopta otro daemon.
   renameSync(dependency, hidden);
   moved = true;
   assert(!existsSync(dependency), "El ejecutable no debe encontrar el paquete de la máquina de compilación.");
   const run = promisify(execFile);
   async function tool(name, ...args) {
+    step = name;
     const { stdout } = await run(binary, [name, ...args, "--json"], {
       cwd: temp, env, timeout: 40000, maxBuffer: 128 * 1024, windowsHide: true,
     });
@@ -61,14 +64,16 @@ try {
     assert(reply.ok, `${name}: ${reply.error?.code ?? "respuesta inválida"}`);
     return reply.data;
   }
-  await tool("start", "--headless", "--browser", "chrome", "--profile", "ensayo-binario");
+  await tool("status");
   assert(await daemonInfo(), "El binario debe haber arrancado su propio daemon.");
+  await tool("start", "--headless", "--browser", "chrome", "--profile", "ensayo-binario");
   await tool("navigate", `${origin}/`);
   const snapshot = await tool("snapshot");
   assert(snapshot.text.includes(marker), "El binario debe leer la página ficticia en Chromium.");
   await tool("stop");
   console.log("Ejecutable autónomo: arranque, navegación, lectura y parada correctos sin node_modules de Playwright.");
 } catch (error) {
+  console.error(`Falló el paso ${step} de la prueba del ejecutable.`);
   const daemonLog = join(cuyHome, "daemon.log");
   if (existsSync(daemonLog)) {
     console.error(`Log del daemon de prueba:\n${readFileSync(daemonLog, "utf8").slice(-8192)}`);
