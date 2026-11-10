@@ -235,10 +235,11 @@ describe("CLI contra Chrome real", () => {
     const results = await Promise.all([cli("daemon", "status"), cli("status")]);
     expect(results[0].stdout).toContain("en marcha");
     expect((await cli("daemon", "stop")).stdout).toContain("detenido");
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(existsSync(join(home, "daemon.sock"))).toBe(false);
+    // El CLI acusa recibo antes de que termine Chrome. Esperamos el cierre real del socket,
+    // sin dejar que la siguiente prueba arranque sobre un daemon que aún está terminando.
+    await expect.poll(() => existsSync(join(home, "daemon.sock")), { timeout: 30_000, interval: 100 }).toBe(false);
     expect((await cli("daemon", "status")).stdout).toContain("detenido");
-  }, 30_000);
+  }, 60_000);
 
   it("reinicia un daemon de una versión anterior y avisa una vez", async () => {
     await stopDaemon();

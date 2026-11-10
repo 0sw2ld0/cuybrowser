@@ -341,6 +341,12 @@ Cada binario ocupa entre 97 y 123 MB, porque incluye su propio motor de ejecuci�
 
 ## Desarrollo
 
+### Relevo a la persona
+
+Con una ventana de CuyBrowser abierta, `cuybrowser handoff "Inicia sesión en esta página"` cede la pestaña activa a la persona. Un diálogo del sistema muestra el sitio y el motivo: haz tu parte en el navegador y pulsa **Continuar**, o **Cancelar**. El relevo termina como máximo a los dos minutos y devuelve la URL y el título actuales como datos de la página.
+
+Durante la espera, las acciones del agente se rechazan con `HANDOFF_ACTIVE`; `status` permite consultar el estado y `stop` cancela el relevo. Funciona con el diálogo nativo aunque la política use otro canal de aprobación. No funciona con `headless`. Para contraseñas, 2FA y captchas, usa este relevo: el agente no los completa ni resuelve por su cuenta.
+
 Con el repositorio clonado e instalado:
 
 ```bash

@@ -143,6 +143,23 @@ export class Session {
   private tabCounter = 0;
   private policy: Policy | null = null;
   private routed = false;
+  private headless = false;
+  private handoffAbort: AbortController | null = null;
+
+  get handingOff(): boolean { return this.handoffAbort !== null; }
+
+  beginHandoff(): AbortController {
+    this.requireContext();
+    if (this.headless) {
+      throw new CuyError("INVALID_PARAMS", "El relevo necesita una ventana: inicia el navegador sin headless.");
+    }
+    if (this.handoffAbort) throw new CuyError("HANDOFF_ACTIVE", "Ya hay un relevo esperando a la persona.");
+    return (this.handoffAbort = new AbortController());
+  }
+
+  finishHandoff(abort: AbortController): void {
+    if (this.handoffAbort === abort) this.handoffAbort = null;
+  }
 
   private readonly guardNavigation = async (route: Route): Promise<void> => {
     const request = route.request();
@@ -184,6 +201,7 @@ export class Session {
     const context = await driver.start();
     this.driver = driver;
     this.context = context;
+    this.headless = options.mode === "launch" && options.headless;
     this.routed = false;
     if (this.policy) await this.applyDomainRules(this.policy);
     context.on("page", (page) => this.register(page));
@@ -203,6 +221,9 @@ export class Session {
   }
 
   private reset(): void {
+    this.handoffAbort?.abort();
+    this.handoffAbort = null;
+    this.headless = false;
     this.driver = null;
     this.context = null;
     this.routed = false;
@@ -218,6 +239,7 @@ export class Session {
     this.activeId ??= tab.id;
     this.recordEvents(tab);
     page.on("close", () => {
+      if (this.activeId === tab.id) this.handoffAbort?.abort();
       this.tabs.delete(tab.id);
       if (this.activeId === tab.id) {
         this.activeId = [...this.tabs.keys()].at(-1) ?? null;
@@ -342,6 +364,7 @@ export class Session {
     if (!this.running || !this.driver) return { running: false, tabs: [] };
     return {
       running: true,
+      handing_off: this.handingOff,
       mode: this.driver.mode,
       ...(this.driver.browser === null
         ? {}

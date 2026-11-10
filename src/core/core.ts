@@ -103,7 +103,7 @@ export class Core {
 
   call(name: string, rawParams: unknown): Promise<ToolResponse> {
     const tool = this.tools.find((candidate) => candidate.name === name);
-    if (tool?.concurrent) return this.execute(name, rawParams);
+    if (tool?.concurrent || this.session.handingOff) return this.execute(name, rawParams);
     return this.enqueue(() => this.execute(name, rawParams));
   }
 
@@ -141,6 +141,9 @@ export class Core {
     const startUrl = this.currentUrl();
     try {
       if (!tool) throw new CuyError("INVALID_PARAMS", `Herramienta desconocida: ${name}`);
+      if (this.session.handingOff && name !== "status" && name !== "stop") {
+        throw new CuyError("HANDOFF_ACTIVE", "El navegador está en manos de la persona. Espera a que continúe o cancele el relevo.");
+      }
       policy = this.policyFor(name);
       await this.session.applyDomainRules(policy);
 
@@ -162,6 +165,7 @@ export class Core {
         warnings,
         policy,
         confirm: (id) => this.confirm(id, policy, warnings),
+        requestHandoff: (request) => this.approver.request({ ...request, kind: "handoff" }),
       };
 
       const gate = tool.gate ? await tool.gate(ctx, parsed.data) : null;
@@ -227,7 +231,7 @@ export class Core {
 
   /** Un diálogo bloquea la página y dejaría la herramienta esperando: se responde en cuanto aparece. */
   private async runInterruptible(tool: AnyTool, ctx: ToolContext, params: unknown, tab: Tab | null): Promise<unknown> {
-    if (!tab) return tool.handler(ctx, params);
+    if (!tab || tool.name === "handoff") return tool.handler(ctx, params);
     let stopListening = () => {};
     const interrupted = new Promise<{ dialog: { kind: string; message: string } }>((resolve) => {
       stopListening = tab.onDialog((dialog) => {
