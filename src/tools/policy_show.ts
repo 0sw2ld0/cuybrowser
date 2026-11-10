@@ -12,7 +12,7 @@ export default defineTool({
     try {
       const policy = loadPolicy();
       return { path: policyPath(), valid: true, audit_path: auditPath(policy), policy,
-        capabilities: { exactOrigins: true, localNetwork: true, visitLeases: true, strictResources: false } };
+        capabilities: { exactOrigins: true, localNetwork: true, visitLeases: true, strictResources: false, auditRecent: true } };
     } catch (err) {
       if (err instanceof CuyError) return { path: policyPath(), valid: false, error: err.message };
       throw err;

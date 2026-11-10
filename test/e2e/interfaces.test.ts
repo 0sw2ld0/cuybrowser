@@ -208,13 +208,58 @@ describe("paridad entre interfaces", () => {
     expect(JSON.parse(stdout).data.path).toBe(out);
     expect(readFileSync(out).subarray(1, 4).toString()).toBe("PNG");
   });
+
+  it("consulta la auditoría saneada por CLI, HTTP y MCP sin autoauditar el sondeo", async () => {
+    expect((await viaHttp("policy_show")).data.capabilities.auditRecent).toBe(true);
+    await viaCli("navigate", { url: `${base}/login?token=TOKEN_AUDIT_PRIVADO#FRAGMENTO_PRIVADO` });
+    const snapshot = await viaHttp("snapshot");
+    await viaMcp("type", { ref: refIn(snapshot, '"Correo"'), text: "CORREO_AUDIT_PRIVADO" });
+    const size = statSync(join(home, "audit.jsonl")).size;
+    const first = await viaCli("audit_recent", { limit: 3 });
+    expect(first.ok, JSON.stringify(first)).toBe(true);
+    expect(first.data.scope.profile).toBe("default");
+    expect(first.data.scope.daemon_session_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(first.data.entries.map((entry: any) => entry.tool)).toEqual(["navigate", "snapshot", "type"]);
+    expect(await viaHttp("audit_recent", { limit: 3 })).toEqual(first);
+    expect(await viaMcp("audit_recent", { limit: 3 })).toEqual(first);
+    expect(JSON.stringify(first)).not.toMatch(/TOKEN_AUDIT|CORREO_AUDIT|FRAGMENTO_PRIVADO|params|confirmation_id/);
+    for (const entry of first.data.entries) {
+      expect(Object.keys(entry).sort()).toEqual(["id", "ok", "origin", "permission", "seq", "tool", "ts"]);
+      expect(entry.permission).toBe("no_consta");
+    }
+    expect((await viaHttp("audit_recent", { cursor: first.data.cursor })).data.entries).toEqual([]);
+    expect((await viaHttp("audit_recent", { limit: 101 })).error.code).toBe("INVALID_PARAMS");
+    expect(statSync(join(home, "audit.jsonl")).size).toBe(size);
+    await viaHttp("status");
+    const next = await viaMcp("audit_recent", { cursor: first.data.cursor });
+    expect(next.data.entries).toHaveLength(1);
+    expect(next.data.entries[0].tool).toBe("status");
+    expect(next.data.entries[0].seq).toBeGreaterThan(first.data.entries.at(-1).seq);
+    expect(next.data.entries[0].id).not.toBe(first.data.entries.at(-1).id);
+  });
+
+  it("no mezcla perfiles reales del mismo daemon y rechaza el cursor del perfil anterior", async () => {
+    const before = await viaHttp("audit_recent");
+    try {
+      await viaCli("stop");
+      expect((await viaCli("start", { headless: true, profile: "otra_prueba" })).ok).toBe(true);
+      const after = await viaHttp("audit_recent");
+      expect(after.data.scope.profile).toBe("otra_prueba");
+      expect(after.data.scope.daemon_session_id).toBe(before.data.scope.daemon_session_id);
+      expect(after.data.entries.map((entry: any) => entry.tool)).toEqual(["start"]);
+      expect((await viaMcp("audit_recent", { cursor: before.data.cursor })).error.code).toBe("AUDIT_CURSOR_EXPIRED");
+    } finally {
+      await viaCli("stop");
+      expect((await viaCli("start", { headless: true })).ok).toBe(true);
+    }
+  }, 60_000);
 });
 
 describe("servidor MCP", () => {
   it("marca las herramientas de solo lectura según su riesgo", async () => {
     const { tools: mcpTools } = await mcp.listTools();
     const byName = new Map(mcpTools.map((tool) => [tool.name, tool.annotations]));
-    for (const name of ["snapshot", "get_text", "find", "screenshot", "tabs_list", "status"]) {
+    for (const name of ["snapshot", "get_text", "find", "screenshot", "tabs_list", "status", "audit_recent"]) {
       expect(byName.get(`browser_${name}`)?.readOnlyHint, name).toBe(true);
     }
     for (const name of ["click", "type", "navigate", "confirm", "upload_file", "evaluate"]) {
@@ -235,6 +280,16 @@ describe("servidor MCP", () => {
 describe("seguridad de la API HTTP", () => {
   const tool = () => `${httpUrl}/v1/tools/status`;
   const auth = () => ({ authorization: `Bearer ${token}` });
+
+  it("protege audit_recent con token y rechaza peticiones procedentes de una página", async () => {
+    const url = `${httpUrl}/v1/tools/audit_recent`;
+    expect((await fetch(url, { method: "POST" })).status).toBe(401);
+    expect((await fetch(url, { method: "POST", headers: { authorization: "Bearer incorrecto" } })).status).toBe(401);
+    expect((await fetch(url, { method: "POST", headers: { ...auth(), origin: "https://pagina.test" } })).status).toBe(403);
+    const response = await fetch(url, { method: "POST", headers: auth(), body: JSON.stringify({ limit: 1 }) });
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.entries).toHaveLength(1);
+  });
 
   // Windows no tiene bits de permiso POSIX; readToken tampoco los comprueba allí.
   it.skipIf(process.platform === "win32")("crea el token con permisos 600", () => {

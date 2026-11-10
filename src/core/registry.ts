@@ -3,6 +3,7 @@ import type { Gate } from "./security/classify.js";
 import type { Policy } from "./security/policy.js";
 import type { Session } from "./session.js";
 import type { ApprovalRequest, Decision } from "./security/approver.js";
+import type { AuditRecentParams } from "./security/audit-recent.js";
 
 export type Risk = "read" | "action" | "sensitive";
 
@@ -12,6 +13,8 @@ export interface ToolContext {
   policy: Policy;
   confirm: (confirmationId: string) => Promise<unknown>;
   requestHandoff: (request: ApprovalRequest) => Promise<Decision>;
+  auditRecent: (params: AuditRecentParams) => unknown;
+  recordStartedProfile: (started: { profile: string | null; attached: boolean }) => void;
 }
 
 /** Pistas de presentación para el CLI. No contienen lógica de la herramienta. */

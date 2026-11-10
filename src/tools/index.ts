@@ -1,4 +1,5 @@
 import type { AnyTool } from "../core/registry.js";
+import audit_recent from "./audit_recent.js";
 import click from "./click.js";
 import confirm from "./confirm.js";
 import console_messages from "./console_messages.js";
@@ -62,4 +63,5 @@ export const tools: readonly AnyTool[] = [
   evaluate,
   confirm,
   policy_show,
+  audit_recent,
 ];

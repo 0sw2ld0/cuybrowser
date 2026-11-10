@@ -33,7 +33,7 @@ export default defineTool({
   }),
   risk: "action",
   cli: { aliases: { cdp_url: "cdp" } },
-  handler: async ({ session, warnings, policy }, { mode, profile, cdp_url, browser, headless }) => {
+  handler: async ({ session, warnings, policy, recordStartedProfile }, { mode, profile, cdp_url, browser, headless }) => {
     if (mode === "launch" && cdp_url !== undefined) {
       throw new CuyError("INVALID_PARAMS", "cdp_url solo se usa con mode attach.");
     }
@@ -53,7 +53,8 @@ export default defineTool({
         : { mode, profile, headless, ...(browser === undefined ? {} : { browser }) },
       warnings,
     );
-    if (!started) warnings.push("El navegador ya estaba iniciado; se conservó su configuración.");
+    if (started) recordStartedProfile(started);
+    else warnings.push("El navegador ya estaba iniciado; se conservó su configuración.");
     return session.status();
   },
 });

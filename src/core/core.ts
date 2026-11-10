@@ -1,4 +1,5 @@
 import { mkdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { randomBytes, randomUUID } from "node:crypto";
 import { basename, extname, join } from "node:path";
 import { z } from "zod";
 import type { Download } from "playwright-core";
@@ -7,6 +8,7 @@ import { downloadsDir, ensureHome, quarantineDir } from "./paths.js";
 import type { AnyTool, ToolContext } from "./registry.js";
 import type { Approver, Decision } from "./security/approver.js";
 import { redactParams, writeAudit } from "./security/audit.js";
+import { readRecentAudit } from "./security/audit-recent.js";
 import { quotePageText, type Gate } from "./security/classify.js";
 import { ConfirmationStore, type PendingConfirmation } from "./security/confirm.js";
 import { warnInjectionInFields } from "./security/untrusted.js";
@@ -26,6 +28,7 @@ const USABLE_DURING_DIALOG = new Set([
   "console_messages",
   "network_requests",
   "policy_show",
+  "audit_recent",
   "confirm",
   "handle_dialog",
 ]);
@@ -88,6 +91,9 @@ export class Core {
   private store = new ConfirmationStore();
   private newDownloads: PendingDownload[] = [];
   private downloadsInProgress = 0;
+  private readonly daemonSessionId = randomUUID();
+  private readonly auditCursorKey = randomBytes(32);
+  private auditSeq = 0;
 
   constructor(
     private readonly tools: readonly AnyTool[],
@@ -138,14 +144,17 @@ export class Core {
     let policy = defaultPolicy();
     let response: ToolResponse;
     let audited: unknown = rawParams;
-    const startUrl = this.currentUrl();
+    let auditUrl = this.currentUrl();
+    let auditProfile = this.session.auditProfile;
+    let auditAttached = this.session.auditAttached;
     try {
       if (!tool) throw new CuyError("INVALID_PARAMS", `Herramienta desconocida: ${name}`);
       if (this.session.handingOff && name !== "status" && name !== "stop") {
         throw new CuyError("HANDOFF_ACTIVE", "El navegador está en manos de la persona. Espera a que continúe o cancele el relevo.");
       }
       policy = this.policyFor(name);
-      await this.session.applyDomainRules(policy);
+      // Consultar el registro no aplica cambios de navegación ni toca la página.
+      if (name !== "audit_recent") await this.session.applyDomainRules(policy);
 
       const parsed = tool.params.safeParse(rawParams ?? {});
       if (!parsed.success) throw new CuyError("INVALID_PARAMS", z.prettifyError(parsed.error));
@@ -166,6 +175,19 @@ export class Core {
         policy,
         confirm: (id) => this.confirm(id, policy, warnings),
         requestHandoff: (request) => this.approver.request({ ...request, kind: "handoff" }),
+        auditRecent: (params) => readRecentAudit(policy,
+          { daemon_session_id: this.daemonSessionId, profile: this.session.auditProfile },
+          params, this.auditCursorKey, new Set(this.tools.map((item) => item.name))),
+        // Las acciones lentas conservan el perfil de entrada. Sólo un arranque
+        // real puede sustituirlo por el perfil del driver que acaba de abrir.
+        recordStartedProfile: (started) => {
+          if (name === "start") {
+            auditProfile = started.profile;
+            auditAttached = started.attached;
+            // Un arranque puede reemplazar el perfil anterior: no le atribuye su sitio.
+            auditUrl = null;
+          }
+        },
       };
 
       const gate = tool.gate ? await tool.gate(ctx, parsed.data) : null;
@@ -185,18 +207,29 @@ export class Core {
         throw this.confirmationRequired(pending);
       }
 
-      const data = this.attachDownloads(tool, await this.runInterruptible(tool, ctx, parsed.data, tab), warnings);
+      // El registro tampoco consume avisos de descargas ni carreras con diálogos de la página.
+      const result = name === "audit_recent" ? await tool.handler(ctx, parsed.data)
+        : await this.runInterruptible(tool, ctx, parsed.data, tab);
+      const data = name === "audit_recent" ? result : this.attachDownloads(tool, result, warnings);
       warnInjectionInFields(data, warnings);
       response = { ok: true, data, warnings };
     } catch (err) {
       response = { ok: false, error: toToolError(err) };
     }
 
+    // El sondeo del registro no debe producir nuevas acciones al sondearse a sí mismo.
+    if (name === "audit_recent") return response;
+    const seq = ++this.auditSeq;
     const auditProblem = writeAudit(policy, {
+      id: `${this.daemonSessionId}:${seq}`,
+      seq,
+      daemon_session_id: this.daemonSessionId,
+      profile: auditProfile,
+      ...(auditAttached ? { attached: true as const } : {}),
       ts: new Date().toISOString(),
       tool: name,
       params: audited === rawParams ? redactParams(rawParams, tool?.auditRedact) : audited,
-      url: startUrl,
+      url: auditUrl,
       ok: response.ok,
       ...(response.ok ? {} : { error_code: response.error.code }),
       ...(response.ok || !response.error.confirmation
