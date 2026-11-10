@@ -161,6 +161,13 @@ export class Session {
     if (this.handoffAbort === abort) this.handoffAbort = null;
   }
 
+  private viewport: { width: number; height: number } | null = null;
+
+  async setViewport(size: { width: number; height: number }): Promise<void> {
+    await this.activeTab().page.setViewportSize(size);
+    this.viewport = { ...size };
+  }
+
   private readonly guardNavigation = async (route: Route): Promise<void> => {
     const request = route.request();
     if (request.isNavigationRequest() && this.policy && !isUrlAllowed(this.policy, request.url())) {
@@ -228,6 +235,7 @@ export class Session {
     this.context = null;
     this.routed = false;
     this.tabs.clear();
+    this.viewport = null;
     this.activeId = null;
   }
 
@@ -344,6 +352,7 @@ export class Session {
 
   async newTab(): Promise<Tab> {
     const page = await this.requireContext().newPage();
+    if (this.viewport) await page.setViewportSize(this.viewport);
     const tab = this.register(page);
     this.activeId = tab.id;
     return tab;

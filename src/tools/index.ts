@@ -27,6 +27,7 @@ import tab_select from "./tab_select.js";
 import tabs_list from "./tabs_list.js";
 import type_ from "./type.js";
 import wait_for from "./wait_for.js";
+import viewport from "./viewport.js";
 
 export const tools: readonly AnyTool[] = [
   start,
@@ -42,6 +43,8 @@ export const tools: readonly AnyTool[] = [
   reload,
   wait_for,
   handoff,
+
+  viewport,
   snapshot,
   get_text,
   find,
