@@ -21,8 +21,12 @@ export function socketPath(): string {
   return join(homeDir(), "daemon.sock");
 }
 
-export function profileDir(profile: string): string {
-  return join(homeDir(), "profiles", profile);
+/**
+ * Perfil aislado de un navegador. El de Chrome no lleva sufijo, para conservar las sesiones de las versiones
+ * que solo usaban Chrome. Los nombres de perfil no admiten puntos, así que no chocan con los sufijos.
+ */
+export function profileDir(profile: string, browserKey = "chrome"): string {
+  return join(homeDir(), "profiles", browserKey === "chrome" ? profile : `${profile}.${browserKey}`);
 }
 
 export function logPath(): string {

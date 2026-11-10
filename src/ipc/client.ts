@@ -81,7 +81,7 @@ async function replaceIfOutdated(socket: Socket): Promise<Socket | null> {
   await stopDaemon();
   restartNotice =
     `Se reinició el daemon de la versión ${info.version ?? "anterior"} para usar la ${VERSION}. ` +
-    "Chrome se cerró: si hace falta, vuelve a ejecutar start.";
+    "El navegador se cerró: si hace falta, vuelve a ejecutar start.";
   return null;
 }
 
@@ -121,10 +121,22 @@ function exchange(socket: Socket, request: IpcRequest): Promise<IpcReply> {
   });
 }
 
+/**
+ * CUYBROWSER_BROWSER se lee aquí, en quien llama, y no en el daemon: el daemon pudo arrancar
+ * antes, desde otro proceso con otro entorno.
+ */
+export function withClientDefaults(tool: string, params: unknown): unknown {
+  const browser = process.env.CUYBROWSER_BROWSER?.trim();
+  if (tool !== "start" || !browser) return params;
+  const record = typeof params === "object" && params !== null ? (params as Record<string, unknown>) : {};
+  if (record.browser !== undefined || record.mode === "attach") return params;
+  return { ...record, browser };
+}
+
 export async function callTool(tool: string, params: unknown): Promise<ToolResponse> {
   try {
     const socket = await openWithAutostart();
-    const reply = await exchange(socket, { id: 1, type: "tool", tool, params });
+    const reply = await exchange(socket, { id: 1, type: "tool", tool, params: withClientDefaults(tool, params) });
     if (reply.type !== "tool") throw new Error("Respuesta inesperada del daemon.");
     return withRestartNotice(reply.response);
   } catch (err) {

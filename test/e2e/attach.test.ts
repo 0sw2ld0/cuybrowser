@@ -68,6 +68,9 @@ describe("modo attach", () => {
     expect((await call("start", { mode: "launch", cdp_url: cdpUrl, headless: true })).error.code).toBe(
       "INVALID_PARAMS",
     );
+    expect((await call("start", { mode: "attach", cdp_url: cdpUrl, browser: "msedge" })).error.code).toBe(
+      "INVALID_PARAMS",
+    );
   });
 
   it("explica el fallo si no hay ningún Chrome escuchando", async () => {

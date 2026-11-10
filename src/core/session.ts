@@ -174,10 +174,13 @@ export class Session {
     }
   }
 
-  async start(options: StartOptions): Promise<boolean> {
+  /** warnings recibe los avisos del arranque, como haber usado otro navegador porque el primero falló. */
+  async start(options: StartOptions, warnings: string[] = []): Promise<boolean> {
     if (this.running) return false;
     const driver =
-      options.mode === "attach" ? new AttachDriver(options.cdp_url ?? DEFAULT_CDP_URL) : new LaunchDriver(options);
+      options.mode === "attach"
+        ? new AttachDriver(options.cdp_url ?? DEFAULT_CDP_URL)
+        : new LaunchDriver(options, warnings);
     const context = await driver.start();
     this.driver = driver;
     this.context = context;
@@ -340,6 +343,9 @@ export class Session {
     return {
       running: true,
       mode: this.driver.mode,
+      ...(this.driver.browser === null
+        ? {}
+        : { browser: this.driver.browser.name, browser_path: this.driver.browser.executablePath }),
       ...(this.driver.profile === null ? {} : { profile: this.driver.profile }),
       ...(this.driver.endpoint === null ? {} : { cdp_url: this.driver.endpoint }),
       active_tab: this.activeId,
