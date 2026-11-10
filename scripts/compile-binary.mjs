@@ -30,6 +30,7 @@ const playwrightMetadata = {
 const result = await Bun.build({
   entrypoints: ["./src/adapters/cli.ts"],
   compile: { outfile, ...(target ? { target } : {}) },
+  define: { __CUYBROWSER_AUTONOMO__: "true" },
   // BiDi sólo hace falta en otros navegadores; CuyBrowser controla Chromium por CDP.
   external: ["chromium-bidi/*"],
   plugins: [playwrightMetadata],

@@ -51,12 +51,14 @@ jobs:
             Windows) powershell -Command "(Get-Item 'C:\Program Files\Google\Chrome\Application\chrome.exe').VersionInfo.ProductVersion" ;;
           esac
 
-      - run: npm test
+      - name: Probar el paquete npm
+        id: paquete
+        run: npm test
         env:
           CI: "true"
 
       - name: Probar el ejecutable autónomo en Chromium
-        if: matrix.node == 22
+        if: ${{ !cancelled() && matrix.node == 22 && (steps.paquete.outcome == 'success' || steps.paquete.outcome == 'failure') }}
         shell: bash
         run: |
           npm run build:bin -- --current
