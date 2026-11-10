@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Gate } from "./security/classify.js";
 import type { Policy } from "./security/policy.js";
 import type { Session } from "./session.js";
+import type { ApprovalRequest, Decision } from "./security/approver.js";
 
 export type Risk = "read" | "action" | "sensitive";
 
@@ -10,6 +11,7 @@ export interface ToolContext {
   warnings: string[];
   policy: Policy;
   confirm: (confirmationId: string) => Promise<unknown>;
+  requestHandoff: (request: ApprovalRequest) => Promise<Decision>;
 }
 
 /** Pistas de presentación para el CLI. No contienen lógica de la herramienta. */

@@ -6,6 +6,7 @@ import evaluate from "./evaluate.js";
 import find from "./find.js";
 import get_text from "./get_text.js";
 import handle_dialog from "./handle_dialog.js";
+import handoff from "./handoff.js";
 import policy_show from "./policy_show.js";
 import upload_file from "./upload_file.js";
 import { back, forward, reload } from "./history.js";
@@ -40,6 +41,7 @@ export const tools: readonly AnyTool[] = [
   forward,
   reload,
   wait_for,
+  handoff,
   snapshot,
   get_text,
   find,
