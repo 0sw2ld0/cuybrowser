@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -18,7 +18,7 @@ const dependency = join(repo, "node_modules", "playwright-core");
 const info = lstatSync(dependency);
 assert(info.isDirectory() && !info.isSymbolicLink(), "Usa una instalación propia de dependencias en este checkout.");
 const hidden = `${dependency}.smoke-${randomUUID()}`;
-const temp = mkdtempSync(join(process.platform === "darwin" ? "/private/tmp" : tmpdir(), "cb-bin-"));
+const temp = realpathSync.native(mkdtempSync(join(process.platform === "darwin" ? "/private/tmp" : tmpdir(), "cb-bin-")));
 const home = join(temp, "home");
 const cuyHome = join(temp, "cuy");
 const binary = join(temp, process.platform === "win32" ? "cuybrowser.exe" : "cuybrowser");
@@ -46,8 +46,9 @@ try {
   writeFileSync(join(cuyHome, "policy.yaml"), JSON.stringify({
     origins: { allow: [origin] }, local_network: { allow_origins: [origin] },
   }), { mode: 0o600 });
-  const env = { ...process.env, HOME: home, CFFIXED_USER_HOME: home, USERPROFILE: home,
-    LOCALAPPDATA: home, APPDATA: home, CUYBROWSER_HOME: cuyHome, PLAYWRIGHT_BROWSERS_PATH: join(temp, "browsers"),
+  // En Windows Chrome necesita resolver sus carpetas conocidas para confirmar que el perfil es distinto del predeterminado.
+  const env = { ...process.env, ...(process.platform === "win32" ? {} : { HOME: home, CFFIXED_USER_HOME: home }),
+    CUYBROWSER_HOME: cuyHome, PLAYWRIGHT_BROWSERS_PATH: join(temp, "browsers"),
     DEBUG: "pw:browser" };
   for (const key of ["NODE_PATH", "NODE_OPTIONS", "CUYBROWSER_BROWSER", "DEBUG_FILE"]) delete env[key];
   process.env.CUYBROWSER_HOME = cuyHome; // Sólo para el IPC de esta prueba, nunca adopta otro daemon.
@@ -64,9 +65,10 @@ try {
     assert(reply.ok, `${name}: ${reply.error?.code ?? "respuesta inválida"}`);
     return reply.data;
   }
-  await tool("status");
+  assert.equal((await tool("status")).running, false, "El daemon de prueba debe empezar sin navegador.");
   assert(await daemonInfo(), "El binario debe haber arrancado su propio daemon.");
   await tool("start", "--headless", "--browser", "chrome", "--profile", "ensayo-binario");
+  assert.equal((await tool("status")).profile, "ensayo-binario", "Chromium debe usar el perfil creado por la prueba.");
   await tool("navigate", `${origin}/`);
   const snapshot = await tool("snapshot");
   assert(snapshot.text.includes(marker), "El binario debe leer la página ficticia en Chromium.");
@@ -101,6 +103,6 @@ try {
       server.closeAllConnections();
       await new Promise((accept) => server.close(accept));
     }
-    if (daemonClosed) rmSync(temp, { recursive: true, force: true });
+    if (daemonClosed) rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
