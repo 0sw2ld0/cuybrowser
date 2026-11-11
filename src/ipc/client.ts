@@ -10,6 +10,8 @@ import { VERSION } from "../core/version.js";
 import { lineReader, type IpcReply, type IpcRequest } from "./protocol.js";
 
 const AUTOSTART_TIMEOUT_MS = 10_000;
+// Definido sólo por la compilación autónoma. La URL virtual de Bun varía por plataforma.
+declare const __CUYBROWSER_AUTONOMO__: boolean;
 
 function open(): Promise<Socket> {
   return new Promise((resolve, reject) => {
@@ -24,9 +26,8 @@ function open(): Promise<Socket> {
 
 /** Un binario compilado no tiene archivos sueltos: el daemon se lanza con el propio binario. */
 function daemonArgs(): string[] {
-  const here = import.meta.url;
-  if (here.includes("$bunfs") || here.includes("~BUN")) return ["__daemon"];
-  return [fileURLToPath(new URL("../core/daemon-main.js", here))];
+  if (typeof __CUYBROWSER_AUTONOMO__ !== "undefined" && __CUYBROWSER_AUTONOMO__) return ["__daemon"];
+  return [fileURLToPath(new URL("../core/daemon-main.js", import.meta.url))];
 }
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;

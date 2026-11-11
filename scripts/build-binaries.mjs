@@ -15,7 +15,8 @@ const TARGETS = [
 
 const out = "release";
 const onlyCurrent = process.argv.includes("--current");
-const bun = join("node_modules", ".bin", process.platform === "win32" ? "bun.cmd" : "bun");
+// El paquete npm instala el ejecutable aquí en los tres sistemas. execFileSync no ejecuta .cmd.
+const bun = join("node_modules", "bun", "bin", "bun.exe");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
@@ -26,17 +27,7 @@ for (const [target, name] of targets) {
   console.log(`Compilando ${name}`);
   execFileSync(
     bun,
-    [
-      "build",
-      "src/adapters/cli.ts",
-      "--compile",
-      // Solo hace falta para navegadores que usan BiDi; CuyBrowser controla Chrome por CDP.
-      "--external",
-      "chromium-bidi/*",
-      ...(target ? [`--target=${target}`] : []),
-      "--outfile",
-      path,
-    ],
+    ["scripts/compile-binary.mjs", path, ...(target ? [target] : [])],
     { stdio: ["ignore", "ignore", "inherit"] },
   );
   checksums.push(`${createHash("sha256").update(readFileSync(path)).digest("hex")}  ${name}`);
