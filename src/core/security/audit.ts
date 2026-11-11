@@ -3,6 +3,11 @@ import { dirname } from "node:path";
 import { auditPath, type Policy } from "./policy.js";
 
 export interface AuditEntry {
+  id: string;
+  seq: number;
+  daemon_session_id: string;
+  profile: string | null;
+  attached?: true;
   ts: string;
   tool: string;
   params: unknown;

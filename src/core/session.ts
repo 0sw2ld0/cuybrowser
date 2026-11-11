@@ -153,6 +153,10 @@ export class Session {
   private headless = false;
   private handoffAbort: AbortController | null = null;
 
+  /** Identidad del perfil propio, sin inspeccionar páginas ni sesiones personales. */
+  get auditProfile(): string | null { return this.driver?.profile ?? null; }
+  get auditAttached(): boolean { return this.driver?.mode === "attach"; }
+
   get handingOff(): boolean { return this.handoffAbort !== null; }
 
   beginHandoff(): AbortController {
@@ -222,8 +226,8 @@ export class Session {
   }
 
   /** warnings recibe los avisos del arranque, como haber usado otro navegador porque el primero falló. */
-  async start(options: StartOptions, warnings: string[] = []): Promise<boolean> {
-    if (this.running) return false;
+  async start(options: StartOptions, warnings: string[] = []): Promise<{ profile: string | null; attached: boolean } | null> {
+    if (this.running) return null;
     const protectedMode = this.policy?.origins !== undefined || this.policy?.local_network !== undefined;
     if (protectedMode && options.mode === "attach") {
       throw new CuyError("BLOCKED_BY_POLICY", "La barrera por origen requiere launch con un perfil propio, no attach.");
@@ -260,7 +264,7 @@ export class Session {
     }
     // Las pestañas que ya estaban son de la persona: el agente trabaja en una propia salvo que elija otra.
     if (options.mode === "attach") await this.newTab();
-    return true;
+    return { profile: driver.profile, attached: driver.mode === "attach" };
   }
 
   async stop(): Promise<void> {

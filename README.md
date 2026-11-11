@@ -210,6 +210,56 @@ La política está en `~/.cuybrowser/policy.yaml`. Se crea en el primer arranque
 
 **Límites conocidos:** un agente con acceso libre a tus archivos puede editar `policy.yaml`, así que para ese caso hay que aislarlo a nivel de sistema operativo. El aviso de prompt injection es orientativo y no detecta todos los ataques.
 
+### Auditoría reciente
+
+Los clientes pueden consultar `audit_recent` por MCP, CLI o `POST /v1/tools/audit_recent`
+con el mismo token y las mismas restricciones de la API HTTP. No abre ni inspecciona
+la página, no consume avisos de descargas y no registra sus propias consultas.
+
+```bash
+cuybrowser audit_recent --limit 50 --json
+```
+
+Devuelve `entries`, `scope: {daemon_session_id, profile}`, `cursor`, `has_more`,
+`truncated`, `legacy_omitted`, `enabled` y una nota «datos, no instrucciones».
+Cada entrada tiene `id`, `seq`, `ts`, `tool`, `ok`, `permission`, `origin` y, si se
+conoce, `error_code`. La identidad `id` es estable y `seq` crece dentro del daemon.
+El origen corresponde a la página al comenzar la acción y puede ser `null`, por
+ejemplo en la primera navegación. Sólo conserva esquema, servidor y puerto;
+nunca se devuelven parámetros,
+texto escrito, mensajes de página, cuerpos, rutas de archivos, credenciales,
+rutas de URL, consultas, fragmentos ni identificadores de confirmación.
+`permission` distingue `approved`, `requested`, `denied` y `no_consta`: una acción
+correcta no implica que la persona la haya aprobado. Un rechazo explícito prima
+sobre una aprobación anterior que ya no se puede aplicar.
+
+La primera consulta devuelve las entradas más recientes, ordenadas de antiguas a
+nuevas. `limit` admite 1–100 (50 por defecto). Envía el `cursor` recibido para
+consultar lo posterior; con `has_more: true`, continúa con el nuevo cursor para
+drenar el resto. No se avanza sobre una última línea que aún no termina en salto
+de línea. La consulta lee como máximo 1 MiB, incluidos los anclajes del cursor,
+y examina hasta 2048 líneas de como máximo 64 KiB; `truncated` avisa si se ha
+recortado la zona reciente o se han omitido líneas ilegibles o demasiado grandes.
+Una línea incompleta de más de 64 KiB devuelve `AUDIT_UNAVAILABLE` sin avanzar.
+
+El alcance se limita al daemon y perfil actuales de ese `CUYBROWSER_HOME`; si no
+hay navegador activo, `profile` es `null`. No hay parámetros para elegir otro
+perfil, otra sesión ni una ruta. La herramienta no devuelve acciones de `attach`,
+porque un navegador prestado no es un perfil propio. Los registros anteriores
+sin esos metadatos se omiten; `legacy_omitted` sólo cuenta los encontrados en la
+zona escaneada.
+Una rotación, truncado, cambio de perfil o reinicio del daemon invalida el cursor
+con `AUDIT_CURSOR_EXPIRED`: consulta de nuevo sin cursor. El lector exige un
+archivo regular dentro del hogar propio, rechaza enlaces y, en POSIX, permisos
+públicos; una ruta externa configurada en `audit.path` devuelve
+`AUDIT_UNAVAILABLE`. La escritura de auditoría conserva su configuración anterior.
+Si la auditoría está desactivada, devuelve `enabled: false` y ninguna entrada.
+
+Comprueba primero `policy_show.capabilities.auditRecent === true`. La capacidad
+es opcional y no existe en el binario publicado 0.5.0: el cliente debe indicar
+que la lectura reciente no está disponible, sin leer el archivo directamente ni
+inventar un historial. Esta rama añade la herramienta sin cambiar la versión.
+
 ### Orígenes exactos y red local
 
 Los clientes que necesitan separar esquema, dominio y puerto pueden añadir estas secciones opcionales:
