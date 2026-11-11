@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import { accessSync, constants, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, posix, win32 } from "node:path";
 import { CuyError } from "../errors.js";
 import { homeDir } from "../paths.js";
+import { isExecutable } from "../runtime.js";
 
 /** Navegadores que se buscan, en este orden, cuando nadie elige uno. */
 export const BROWSER_IDS = ["chrome", "msedge", "brave", "chromium", "arc"] as const;
@@ -179,16 +179,6 @@ export function resolveBrowsers(choice: string | undefined, system: BrowserSyste
 /** Donde descarga install-browser. Se respeta PLAYWRIGHT_BROWSERS_PATH si la persona lo definió. */
 export function browsersDir(): string {
   return join(homeDir(), "browsers");
-}
-
-function isExecutable(path: string): boolean {
-  try {
-    if (!statSync(path).isFile()) return false;
-    if (process.platform !== "win32") accessSync(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 interface RegistryExecutable {

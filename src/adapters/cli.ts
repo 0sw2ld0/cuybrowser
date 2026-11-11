@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { Command, Option } from "commander";
+import { fileURLToPath } from "node:url";
+import { Argument, Command, Option } from "commander";
 import type { ToolResponse } from "../core/errors.js";
 import { ensureHome, screenshotsDir } from "../core/paths.js";
 import type { AnyTool } from "../core/registry.js";
@@ -10,6 +11,7 @@ import { VERSION } from "../core/version.js";
 import { DOC_FORMATS, generateDocs, type DocFormat } from "../docs/generate.js";
 import { callTool, daemonInfo, resolveApproval, stopDaemon } from "../ipc/client.js";
 import { tools } from "../tools/index.js";
+import { CLIENTS, setupMcp, type Client } from "./setup.js";
 
 interface ImageData {
   image: { mime_type: string; base64: string };
@@ -121,6 +123,14 @@ program
   .action(async (options: { prefix: string }) => {
     const { runMcp } = await import("./mcp.js");
     await runMcp(tools, options.prefix);
+  });
+
+program
+  .command("setup")
+  .description("Detecta clientes MCP o registra CuyBrowser para el cliente elegido.")
+  .addArgument(new Argument("[cliente]", "Cliente que quieres configurar.").choices([...CLIENTS]))
+  .action((client: Client | undefined) => {
+    process.exitCode = setupMcp(client, () => fileURLToPath(import.meta.url));
   });
 
 program

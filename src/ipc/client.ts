@@ -6,12 +6,11 @@ import type { ApprovalInfo } from "../core/core.js";
 import type { ToolResponse } from "../core/errors.js";
 import type { BrowserEvent } from "../core/events.js";
 import { ensureHome, logPath, socketPath } from "../core/paths.js";
+import { isStandalone } from "../core/runtime.js";
 import { VERSION } from "../core/version.js";
 import { lineReader, type IpcReply, type IpcRequest } from "./protocol.js";
 
 const AUTOSTART_TIMEOUT_MS = 10_000;
-// Definido sólo por la compilación autónoma. La URL virtual de Bun varía por plataforma.
-declare const __CUYBROWSER_AUTONOMO__: boolean;
 
 function open(): Promise<Socket> {
   return new Promise((resolve, reject) => {
@@ -26,7 +25,7 @@ function open(): Promise<Socket> {
 
 /** Un binario compilado no tiene archivos sueltos: el daemon se lanza con el propio binario. */
 function daemonArgs(): string[] {
-  if (typeof __CUYBROWSER_AUTONOMO__ !== "undefined" && __CUYBROWSER_AUTONOMO__) return ["__daemon"];
+  if (isStandalone) return ["__daemon"];
   return [fileURLToPath(new URL("../core/daemon-main.js", import.meta.url))];
 }
 
