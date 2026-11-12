@@ -88,6 +88,8 @@ const GUIDE = `## Instalación y arranque
 
 Requiere el comando \`cuybrowser\`. Si no está instalado, pide a la persona usuaria que siga el README del proyecto.
 
+Para conectar Claude Code, Cursor o Codex por MCP, la persona usuaria puede listar los clientes detectados con \`cuybrowser setup\` y registrar uno con \`cuybrowser setup claude-code\`, \`cuybrowser setup cursor\` o \`cuybrowser setup codex\`. Este último requiere la CLI de Codex en el PATH.
+
 Ejecuta \`cuybrowser\` en la terminal. No uses las herramientas de navegador integradas de tu editor ni otro navegador, salvo que la persona usuaria lo pida.
 
 \`\`\`bash

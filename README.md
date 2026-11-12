@@ -110,13 +110,17 @@ Te pide confirmación; con `--yes` no la pide. Se guarda en `~/.cuybrowser/brows
 
 Las herramientas se publican con el prefijo `browser_`, que se puede cambiar con `--prefix`. Instálalo antes de forma global o usa la ruta absoluta del binario.
 
-**Claude Code:**
+Ejecuta `cuybrowser setup` para ver qué clientes detecta. Elige uno con su identificador para añadir CuyBrowser a su registro MCP de usuario:
 
 ```bash
-claude mcp add cuybrowser -- cuybrowser mcp
+cuybrowser setup claude-code
+cuybrowser setup cursor
+cuybrowser setup codex
 ```
 
-**Claude Desktop** (`claude_desktop_config.json`) y **Cursor** (`~/.cursor/mcp.json`) usan el mismo bloque:
+Claude Code usa `~/.claude.json` o el directorio de `CLAUDE_CONFIG_DIR`. Cursor usa `~/.cursor/mcp.json`. Codex requiere su CLI en el `PATH` y registra el servidor en su configuración global. El registro usa la ruta absoluta de esta instalación. Si ya existe un servidor llamado `cuybrowser`, se conserva. Vuelve a abrir el cliente para cargarlo.
+
+**Claude Desktop** (`claude_desktop_config.json`) y otros clientes con configuración MCP en JSON se pueden configurar a mano con este bloque:
 
 ```json
 {
